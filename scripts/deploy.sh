@@ -6,12 +6,25 @@
 set -euo pipefail
 cd /root/vps-dashboard
 
+OLD="$(git rev-parse HEAD)"
+echo "==> starting from $OLD"
 echo "==> git fetch + pull (ff-only)"
 git fetch origin
 git pull --ff-only origin main
+NEW="$(git rev-parse HEAD)"
+echo "==> $OLD -> $NEW"
 
+if [ "$OLD" = "$NEW" ]; then
+  echo "==> already up to date, nothing to do"
+  exit 0
+fi
+
+# Compare against the pre-pull HEAD (not HEAD@{1}, which may be older when
+# the pull changed nothing or when several pulls happened in a row).
+# NOTE: plain `git diff ... | grep -q` under `set -o pipefail` can misreport
+# via SIGPIPE, so --quiet is used instead.
 LOCK_CHANGED=0
-if git diff --name-only HEAD@{1} HEAD 2>/dev/null | grep -q '^package-lock.json$'; then
+if ! git diff --quiet "$OLD" "$NEW" -- package-lock.json; then
   LOCK_CHANGED=1
 fi
 
@@ -25,10 +38,14 @@ fi
 echo "==> node --check server.js"
 node --check server.js
 
-echo "==> pm2 reload vps-control-panel"
-pm2 reload vps-control-panel --update-env
+echo "==> pm2 startOrReload (applies ecosystem env changes; panel only)"
+pm2 startOrReload ecosystem.config.js --only vps-control-panel --update-env
 
 echo "==> health check"
-HEALTH="$(curl -sf http://127.0.0.1:8787/api/health)"
+if ! HEALTH="$(curl -sf http://127.0.0.1:8787/api/health)"; then
+  echo "HEALTH CHECK FAILED. Roll back with:"
+  echo "  cd /root/vps-dashboard && git checkout $OLD && pm2 startOrReload ecosystem.config.js --only vps-control-panel --update-env"
+  exit 1
+fi
 echo "$HEALTH"
 echo "DEPLOY OK"

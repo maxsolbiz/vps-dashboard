@@ -9,7 +9,10 @@
 //     confirm (+ typed name for stop) + per-app + global locks, all audited.
 const path = require('path');
 const crypto = require('crypto');
-const fastify = require('fastify')({ logger: false, trustProxy: false });
+// trustProxy limited to loopback: req.ip is the rightmost untrusted address
+// from X-Forwarded-For (proxy-addr semantics), so client-supplied values
+// further left are ignored. Rate limiting and audit logging use req.ip.
+const fastify = require('fastify')({ logger: false, trustProxy: require('./lib/config').trustProxies });
 
 const config = require('./lib/config');
 const store = require('./lib/store');
@@ -32,24 +35,40 @@ function parseCookies(header) {
   return out;
 }
 
-function sessionCookie(value, expires) {
+function sessionCookie(value, expires, secure) {
   const parts = [`${config.sessionCookie}=${encodeURIComponent(value)}`, 'Path=/', 'HttpOnly', 'SameSite=Strict'];
-  if (config.https) parts.push('Secure');
+  if (secure) parts.push('Secure');
   if (expires) parts.push(`Expires=${new Date(expires).toUTCString()}`);
   else parts.push('Expires=Thu, 01 Jan 1970 00:00:00 GMT');
   return parts.join('; ');
 }
 
+// HTTPS when explicitly enabled or when the reverse proxy says so.
+function isHttps(req) {
+  return config.https || String(req.headers['x-forwarded-proto'] || '').toLowerCase() === 'https';
+}
+
 // ---------- host / origin / csrf ----------
 function hostOk(req) {
   const host = String(req.headers.host || '');
-  if (!host) return true; // HTTP/1.0 without Host; tunnel-only bind still applies
-  return /^(127\.0\.0\.1|localhost|::1)(:\d+)?$/i.test(host);
+  if (!host) return true; // HTTP/1.0 without Host; loopback bind still applies
+  if (/^(127\.0\.0\.1|localhost|::1)(:\d+)?$/i.test(host)) return true;
+  if (config.publicHost) {
+    const bare = host.split(':')[0].toLowerCase();
+    if (bare === config.publicHost) return true;
+  }
+  return false;
 }
 
 function originOk(req) {
   const o = String(req.headers.origin || '');
-  return /^(https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?|https?:\/\/\[::1\](:\d+)?)$/i.test(o);
+  if (/^(https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?|https?:\/\/\[::1\](:\d+)?)$/i.test(o)) return true;
+  // Public hostname only ever over https (Apache redirects plain http away).
+  if (config.publicHost) {
+    const m = o.match(/^https:\/\/([^/:]+)(:\d+)?$/i);
+    if (m && m[1].toLowerCase() === config.publicHost) return true;
+  }
+  return false;
 }
 
 // CSRF tokens: issued with /api/me, valid 30 min, single-use-ish (kept briefly).
@@ -148,6 +167,7 @@ fastify.addHook('onSend', async (req, reply, payload) => {
   reply.header('X-Frame-Options', 'DENY');
   reply.header('X-Content-Type-Options', 'nosniff');
   reply.header('Content-Security-Policy', "default-src 'self'");
+  reply.header('X-Robots-Tag', 'noindex, nofollow');
   // No-store everywhere, including static UI files: dashboard HTML/JS must
   // never be heuristically cached, or a stale app.js can silently mix with
   // a fresh index.html (empty tables, no errors).
@@ -178,6 +198,11 @@ fastify.get('/*', async (req, reply) => {
 });
 
 // ---------- public (read) ----------
+fastify.get('/robots.txt', async (req, reply) => {
+  reply.header('Content-Type', 'text/plain; charset=utf-8');
+  return 'User-agent: *\nDisallow: /\n';
+});
+
 fastify.get('/api/health', async () => ({ ok: true, time: new Date().toISOString(), actions_enabled: actionsEnabled() }));
 
 fastify.get('/api/me', async (req) => ({
@@ -209,7 +234,7 @@ fastify.post('/api/auth/login', async (req, reply) => {
   }
   loginOk(ip);
   const token = store.createSession({ id: found.id, username: found.username, role: found.role }, ip, req.headers['user-agent']);
-  reply.header('Set-Cookie', sessionCookie(token, Date.now() + config.sessionMaxS * 1000));
+  reply.header('Set-Cookie', sessionCookie(token, Date.now() + config.sessionMaxS * 1000, isHttps(req)));
   store.audit({ userId: found.id, username: found.username, action: 'login', result: 'ok', ip });
   return { ok: true, username: found.username, role: found.role, csrf: issueCsrf() };
 });
@@ -219,7 +244,7 @@ fastify.post('/api/auth/logout', async (req, reply) => {
   const user = currentUser(req);
   const cookies = parseCookies(req.headers.cookie);
   store.destroySession(cookies[config.sessionCookie]);
-  reply.header('Set-Cookie', sessionCookie('', 0));
+  reply.header('Set-Cookie', sessionCookie('', 0, isHttps(req)));
   if (user) store.audit({ userId: user.id, username: user.username, action: 'logout', result: 'ok', ip: ipOf(req) });
   return { ok: true };
 });

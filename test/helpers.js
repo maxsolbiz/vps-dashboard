@@ -200,6 +200,7 @@ function buildFixtures() {
         PANEL_PM2_TTL_MS: '0',
         PANEL_SCAN_GAP_MS: '0',
         PANEL_SAMPLER: '0', // tests drive ticks manually; server never auto-starts it
+        PANEL_PUBLIC_HOST: 'panel.example',
         PANEL_LOG_PREFIXES: logs,
         ...extra
       };

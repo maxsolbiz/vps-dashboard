@@ -126,6 +126,25 @@ test('shared sampler: start/stop lifecycle', async () => {
   assert.equal(sampler.latest().procs, null);
 });
 
+test('private files/dirs request 0600/0700 modes', () => {
+  const fs = require('fs');
+  const fsutil = require('../lib/fsutil');
+  const calls = [];
+  const orig = fs.chmodSync;
+  fs.chmodSync = (...a) => { calls.push(a); try { return orig(...a); } catch (_) {} };
+  try {
+    const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'panel-perm-')), 'data');
+    fsutil.writePrivate(path.join(dir, 'f.json'), '{}');
+    fsutil.ensureDir(path.join(dir, 'sub'));
+    assert.ok(fs.existsSync(path.join(dir, 'f.json')), 'file written');
+  } finally {
+    fs.chmodSync = orig;
+  }
+  const modes = calls.map(([, m]) => m);
+  assert.ok(modes.includes(0o700), `dir 0700 requested, got ${modes.join(',')}`);
+  assert.ok(modes.includes(0o600), `file 0600 requested, got ${modes.join(',')}`);
+});
+
 test('status map never reports crash loops as stopped', () => {
   assert.equal(statuslib.mapStatus('online'), 'running');
   assert.equal(statuslib.mapStatus('stopped'), 'stopped');
