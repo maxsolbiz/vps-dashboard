@@ -3,7 +3,9 @@ module.exports = {
     {
       name: 'vps-control-panel',
       script: 'server.js',
-      cwd: '/root/vps-panel',
+      // Canonical home is /root/vps-dashboard (git clone). Overridable for
+      // staging/dev checkouts; no secrets here.
+      cwd: process.env.PANEL_CWD || '/root/vps-dashboard',
       // Panel must never listen publicly: localhost only, SSH tunnel for access.
       // The master actions switch lives in data/policy.json (read live, one
       // edit, no restart). Do NOT put ACTIONS_ENABLED here: the env var is
