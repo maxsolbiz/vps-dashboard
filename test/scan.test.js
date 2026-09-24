@@ -126,7 +126,7 @@ test('scan finds and labels every fixture category', async () => {
   assert.equal(infra.status, 'running');
   assert.equal(byId['infra-mariadb'].status, 'stopped');
 
-  assert.deepEqual(sc.drift.running_not_in_dump, ['new-app']);
+  assert.deepEqual(sc.drift.running_not_in_dump, ['new-app', 'telegram-bot']);
   assert.deepEqual(sc.drift.in_dump_not_running, ['ghost-app']);
   assert.equal(sc.counts.public_binds, 4, 'web-pwa:3000 + bank-api:5000 + 2 website *:80 rows');
 });

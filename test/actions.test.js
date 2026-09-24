@@ -180,6 +180,78 @@ test('overview uses a fresh ps when the sampler snapshot misses jlist pids', asy
   }
 });
 
+test('allow list: unlisted app has no actions and is blocked', async () => {
+  const sc = await fetch(`${srv.base}/api/scan`, { method: 'POST', headers: authed(sess), body: '{}' }).then((r) => r.json());
+  const item = sc.items.find((i) => i.id === 'telegram-bot');
+  assert.ok(item, 'telegram-bot is discovered');
+  assert.deepEqual(item.actions, [], 'unlisted app gets no buttons');
+  const r = await act('telegram-bot', { action: 'restart', confirm: true });
+  assert.equal(r.status, 403);
+});
+
+test('allow list: partial entry limits that app (bank-api restart only)', async () => {
+  const sc = await fetch(`${srv.base}/api/scan`, { method: 'POST', headers: authed(sess), body: '{}' }).then((r) => r.json());
+  const item = sc.items.find((i) => i.id === 'bank-api');
+  assert.deepEqual(item.actions, ['restart']);
+  const stop = await act('bank-api', { action: 'stop', confirm: true, confirmName: 'bank-api' });
+  assert.equal(stop.status, 403, 'stop not in its allow entry');
+  const restart = await act('bank-api', { action: 'restart', confirm: true });
+  assert.equal(restart.status, 200);
+});
+
+test('deny still overrides allow', async () => {
+  const fs = require('fs');
+  const policyFile = require('../lib/config').policyPath;
+  const backup = fs.readFileSync(policyFile, 'utf8');
+  const pol = JSON.parse(backup);
+  pol.deny = { 'shop-api': ['stop', 'restart'] };
+  fs.writeFileSync(policyFile, JSON.stringify(pol));
+  try {
+    const sc = await fetch(`${srv.base}/api/scan`, { method: 'POST', headers: authed(sess), body: '{}' }).then((r) => r.json());
+    assert.deepEqual(sc.items.find((i) => i.id === 'shop-api').actions, ['start']);
+    const r = await act('shop-api', { action: 'restart', confirm: true });
+    assert.equal(r.status, 403);
+  } finally {
+    fs.writeFileSync(policyFile, backup);
+  }
+});
+
+test('allow list: missing or malformed allow blocks everything', async () => {
+  const fs = require('fs');
+  const policyFile = require('../lib/config').policyPath;
+  const backup = fs.readFileSync(policyFile, 'utf8');
+  const cases = [
+    ['missing allow', (p) => { delete p.allow; }],
+    ['allow is an array', (p) => { p.allow = ['web-pwa']; }],
+    ['allow is a string', (p) => { p.allow = 'web-pwa'; }],
+    ['entry is not an array', (p) => { p.allow = { 'web-pwa': 'restart' }; }]
+  ];
+  for (const [label, mutate] of cases) {
+    const pol = JSON.parse(backup);
+    mutate(pol);
+    fs.writeFileSync(policyFile, JSON.stringify(pol));
+    try {
+      const r = await act('web-pwa', { action: 'restart', confirm: true });
+      assert.equal(r.status, 403, label);
+    } finally {
+      fs.writeFileSync(policyFile, backup);
+    }
+  }
+});
+
+test('allow list: invalid action names in an entry are ignored', () => {
+  const policy = require('../lib/policy');
+  const clean = policy.normalizeAllow({
+    'good-app': ['restart', 'delete', 'save', 'restart'],
+    'bad name!': ['restart'],
+    'also-bad': 'restart',
+    'empty-app': []
+  });
+  assert.deepEqual(clean, { 'good-app': ['restart'] });
+  assert.deepEqual(policy.normalizeAllow(undefined), {});
+  assert.deepEqual(policy.actionsFor({ allow: clean, deny: {}, default_actions: ['start', 'stop', 'restart'] }, 'nope'), []);
+});
+
 test('ACTIONS_ENABLED=false env kill-switch -> 403 + audit entry', async () => {
   const prev = process.env.ACTIONS_ENABLED;
   process.env.ACTIONS_ENABLED = 'false';

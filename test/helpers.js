@@ -68,6 +68,7 @@ function buildFixtures() {
     `  400     1   30000  0.3  10000 node ${newapp}/index.js`,
     `  500     1   25000  0.2   9000 node ${PANEL_ROOT}/server.js`,
     `  501   500    9000  0.1    100 node ${PANEL_ROOT}/scripts/dev-fixtures.js`,
+    `  800     1   25000  0.4  50000 node ${roots.root}/meezan-bank/backend/scripts/telegram-bot.mjs`,
     `  600     1   40000  1.1  50000 node ${rogue}/server.js`,
     `  700     1   25000  0.3  90000 /bin/bash ${invoice}/start-frontend.sh`,
     '  705     1    8000  0.0   1000 node /usr/lib/node_modules/pm2/bin/pm2 jlist',
@@ -140,6 +141,15 @@ function buildFixtures() {
   // --- policy + overrides ---
   write(path.join(dir, 'policy.json'), JSON.stringify({
     default_actions: ['start', 'stop', 'restart'],
+    allow: {
+      'web-pwa': ['start', 'stop', 'restart'],
+      'shop-api': ['start', 'stop', 'restart'],
+      'bank-api': ['restart'],
+      'nightly-purge': ['start', 'stop', 'restart'],
+      'new-app': ['restart'],
+      'invoice-fe': ['start', 'stop', 'restart'],
+      'flaky-worker': ['restart']
+    },
     deny: {},
     actions_enabled: true,
     ignore_paths: [],
@@ -159,6 +169,7 @@ function buildFixtures() {
       'new-app': { status: 'online', pid: 400, fixturePid: 400, cwd: newapp, exec: `${newapp}/index.js`, restarts: 0, unstable: 0, cpu: 0.3, mem: 30720000, uptimeStart: now - 10000000, out: path.join(logs, 'web-pwa-out.log'), err: null },
       'invoice-fe': { status: 'online', pid: 700, fixturePid: 700, cwd: roots.root, exec: `${invoice}/start-frontend.sh`, restarts: 2, unstable: 0, cpu: 0.3, mem: 25600000, uptimeStart: now - 8000000, out: path.join(logs, 'web-pwa-out.log'), err: null },
       'flaky-worker': { status: 'waiting restart', pid: 0, fixturePid: 0, cwd: nightly, exec: `${nightly}/worker.mjs`, restarts: 41, unstable: 3, cpu: 0, mem: 0, uptimeStart: 0, out: null, err: null },
+      'telegram-bot': { status: 'online', pid: 800, fixturePid: 800, cwd: path.join(roots.root, 'meezan-bank'), exec: `${roots.root}/meezan-bank/backend/scripts/telegram-bot.mjs`, restarts: 0, unstable: 0, cpu: 0.4, mem: 25165824, uptimeStart: now - 50000000, out: null, err: null },
       'vps-control-panel': { status: 'online', pid: 500, fixturePid: 500, cwd: PANEL_ROOT, exec: `${PANEL_ROOT}/server.js`, restarts: 0, unstable: 0, cpu: 0.2, mem: 25600000, uptimeStart: now - 9000000, out: null, err: null }
     }
   };

@@ -11,6 +11,23 @@ STANDING RULES (permanent)
 Nothing below has been executed. Every item touches the live server or a
 credential, so each one is approved and applied separately.
 
+## H11 — Allow list is the real gate (fail-closed)
+- `data/policy.json` has an `allow` map: `{"<pm2-name>": ["start","stop","restart"]}`.
+  **An app with no entry gets NO actions** — including newly added or renamed
+  apps, which is the point of a list rather than a blocklist.
+- Effective actions = allow entry ∩ `default_actions` − `deny[app]`. The panel
+  itself (`panel_name`) is always protected regardless of policy.
+- Missing, malformed, or non-array `allow` ⇒ **everything blocked**. Individual
+  entries with invalid action names are dropped, not fatal.
+- `server.js` re-derives the allow/deny decision from the file on **every
+  action**, so edits take effect with no restart and no rescan. The scan's
+  `actions` array is only what the UI draws buttons from.
+- The panel **never** writes `policy.json`; only you edit it on the server.
+- This still does not cover: authentication (Basic Auth + panel login, no 2FA
+  yet), and the fact that anyone holding both passwords has root-equivalent
+  control over every allowed app. Keep `actions_enabled: false` by default and
+  flip it only for the duration of a task.
+
 ## H1 — Rotate leaked GitHub tokens (CRITICAL)
 - The `meezan-bank` and `taskbloom` git remotes contain embedded personal
   access tokens (seen via `git remote get-url origin` during audit).

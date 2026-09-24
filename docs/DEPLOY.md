@@ -28,17 +28,56 @@ the health check fails.
 
 ## 1. Enabling or disabling actions
 
-Master switch is the live policy file (one edit, no restart):
+Two switches, both in `/root/vps-dashboard/data/policy.json` (read live, no
+restart). Never edit this file from the panel; the panel only writes
+`overrides.json`.
+
+**Master switch** — off by default:
 
 ```sh
 ssh -i "$env:USERPROFILE\.ssh\meezan_vps" root@178.105.109.19 \
-  "sed -i 's/\"actions_enabled\": .*/\"actions_enabled\": true,/' /root/vps-dashboard/data/policy.json"
+  "sed -i '/actions_enabled/s/false/true/' /root/vps-dashboard/data/policy.json"
 ```
 
-Set it back to `false` to lock the panel down again. A missing or corrupt
-policy fails closed (actions off, all logs off, red banner in the UI).
-`ACTIONS_ENABLED=false` in the environment is an emergency kill-switch only;
-it is deliberately absent from `ecosystem.config.js`.
+Set it back to `false` when finished. `ACTIONS_ENABLED=false` in the
+environment is an emergency kill-switch only; it is deliberately absent from
+`ecosystem.config.js`.
+
+**Allow list** — an app with no entry gets **no actions at all** (fail-closed,
+so new or renamed apps are inert until you list them):
+
+```json
+"allow": { "telegram-bot": ["restart"] }
+```
+
+Effective actions = allow entry ∩ `default_actions` − `deny[app]`. A missing or
+malformed `allow` blocks everything. `stop` additionally requires typing the
+app name. The panel never appears in `allow` and is always protected.
+
+## 1a. Rehearsal checklist (do this the first time, and rehearse before real work)
+
+- [ ] Read `docs/HARDENING.md` H11, then add **only** the apps you intend to
+      touch to `allow`, keeping `stop` out unless you truly mean it.
+- [ ] Confirm the target's real state first (`pm2 describe <name>`, its logs,
+      any in-process schedulers like hbl-pwa's `[backup-scheduler]`).
+- [ ] Set `actions_enabled: true`. Do the work. Set it back to `false`.
+- [ ] **Stop order: web → API → worker.** Never the reverse.
+- [ ] **Start order: worker → API → web**, one app at a time, ~30 s between
+      each. Two cores handle a Next.js cold start badly if several start at once.
+- [ ] For apps started via `npm start` (hbl-pwa is one): after a stop, run
+      `ss -ltnp | grep :<port>`. **It must be empty before you press Start**, or
+      the start can fail with "address in use". PM2 usually kills the whole
+      tree, so this is a verification, not a cleanup.
+- [ ] After a stop, a proxied domain returns **503** from Apache — that is the
+      expected signal, not a new fault.
+- [ ] A stop is **not permanent across reboots**: PM2 restores from the dump
+      saved earlier, which had everything online. Run `pm2 save` yourself only
+      when you *want* a stop to survive a reboot.
+- [ ] Never start `meezan-selfie-purge` until someone has read what it does
+      (a scheduled retention/purge job). Never stop `meezan-backups` (the live
+      database backup scheduler).
+- [ ] Logs for `meezan-*`, `hbl-*` and `telegram-bot` are disabled in the panel
+      by policy — use SSH to read them.
 
 ## 2. Rollback
 

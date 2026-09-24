@@ -359,9 +359,9 @@ fastify.post('/api/apps/:id/actions', async (req, reply) => {
     return;
   }
   // Permissions come from the CURRENT policy on disk, not the saved scan:
-  // a deny entry takes effect without rescanning.
+  // an allow/deny edit takes effect without rescanning.
   const pol = policy.loadPolicy();
-  const allowed = (pol.default_actions || []).filter((x) => !(pol.deny[item.name] || []).includes(x));
+  const allowed = policy.actionsFor(pol, item.name);
   if (!allowed.includes(action)) {
     store.audit({ ...attempt, action: String(action), result: 'blocked', error: 'action not allowed for app' });
     deny(reply, 403, `action "${action}" is not allowed for ${id}`);
