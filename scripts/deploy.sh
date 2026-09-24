@@ -41,10 +41,19 @@ node --check server.js
 echo "==> pm2 startOrReload (applies ecosystem env changes; panel only)"
 pm2 startOrReload ecosystem.config.js --only vps-control-panel --update-env
 
-echo "==> health check"
-if ! HEALTH="$(curl -sf http://127.0.0.1:8787/api/health)"; then
+echo "==> health check (retrying up to 30s: the panel needs a moment to bind)"
+HEALTH=""
+for i in $(seq 1 30); do
+  if HEALTH="$(curl -sf --max-time 3 http://127.0.0.1:8787/api/health)"; then
+    break
+  fi
+  HEALTH=""
+  sleep 1
+done
+if [ -z "$HEALTH" ]; then
   echo "HEALTH CHECK FAILED. Roll back with:"
   echo "  cd /root/vps-dashboard && git checkout $OLD && pm2 startOrReload ecosystem.config.js --only vps-control-panel --update-env"
+  echo "  cd /root/vps-dashboard && git checkout main   # leave detached HEAD afterwards"
   exit 1
 fi
 echo "$HEALTH"
