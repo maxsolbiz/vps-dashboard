@@ -3,20 +3,36 @@
 # cron or a webhook:
 #   ssh -i ~/.ssh/meezan_vps root@178.105.109.19 "bash /root/vps-dashboard/scripts/deploy.sh"
 # Aborts without restarting anything if the pull or the syntax check fails.
+#
+# NOTE: this script rewrites itself on every pull (git replaces the file while
+# bash is still reading it), so after a successful pull we re-exec the freshly
+# pulled copy instead of continuing in a half-read file. OLD is carried across
+# the re-exec so the package-lock comparison stays correct.
 set -euo pipefail
 cd /root/vps-dashboard
 
-OLD="$(git rev-parse HEAD)"
-echo "==> starting from $OLD"
-echo "==> git fetch + pull (ff-only)"
-git fetch origin
-git pull --ff-only origin main
-NEW="$(git rev-parse HEAD)"
-echo "==> $OLD -> $NEW"
-
-if [ "$OLD" = "$NEW" ]; then
-  echo "==> already up to date, nothing to do"
-  exit 0
+if [ "${PANEL_DEPLOY_PHASE2:-}" = "1" ]; then
+  # Phase 2: the new script is already on disk. Use the OLD recorded before the
+  # pull, skip pulling again, and finish the deploy.
+  OLD="${PANEL_DEPLOY_OLD:?PANEL_DEPLOY_OLD missing}"
+  NEW="$(git rev-parse HEAD)"
+  echo "==> continuing deploy $OLD -> $NEW"
+else
+  # Phase 1: pull, then hand over to the new copy of this script.
+  OLD="$(git rev-parse HEAD)"
+  echo "==> starting from $OLD"
+  echo "==> git fetch + pull (ff-only)"
+  git fetch origin
+  git pull --ff-only origin main
+  NEW="$(git rev-parse HEAD)"
+  echo "==> $OLD -> $NEW"
+  if [ "$OLD" = "$NEW" ]; then
+    echo "==> already up to date, nothing to do"
+    exit 0
+  fi
+  export PANEL_DEPLOY_OLD="$OLD"
+  export PANEL_DEPLOY_PHASE2=1
+  exec bash "$0" "$@"
 fi
 
 # Compare against the pre-pull HEAD (not HEAD@{1}, which may be older when
