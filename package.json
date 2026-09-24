@@ -1,0 +1,19 @@
+{
+  "name": "vps-control-panel",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Private lightweight VPS control panel (scan + PM2 control, no native deps, no build step)",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "create-admin": "node scripts/create-admin.js",
+    "test": "node --test test/scan.test.js test/actions.test.js test/security.test.js test/ratelimit.test.js test/cpu.test.js test/walk.test.js"
+  },
+  "engines": {
+    "node": ">=20 <23"
+  },
+  "dependencies": {
+    "fastify": "^5.6.1"
+  }
+}

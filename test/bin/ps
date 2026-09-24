@@ -1,0 +1,5 @@
+#!/usr/bin/env node
+'use strict';
+// Fake `ps`: prints the fixture process table, ignores argv.
+const fs = require('fs');
+process.stdout.write(fs.readFileSync(process.env.PANEL_FAKE_PS, 'utf8'));

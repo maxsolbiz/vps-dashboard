@@ -1,0 +1,8 @@
+#!/usr/bin/env node
+'use strict';
+// Fake `systemctl`: `is-active <units...>` from the fixture map.
+const fs = require('fs');
+const argv = process.argv.slice(2);
+if (argv[0] !== 'is-active') { process.stderr.write('unsupported\n'); process.exit(2); }
+const map = JSON.parse(fs.readFileSync(process.env.PANEL_FAKE_SYSTEMCTL, 'utf8'));
+for (const u of argv.slice(1)) process.stdout.write(`${map[u] || 'unknown'}\n`);

@@ -1,0 +1,49 @@
+#!/usr/bin/env node
+'use strict';
+// Fake `pm2` for tests. State in $PANEL_FAKE_STATE/pm2-state.json.
+// Supports ONLY: jlist, start <name>, stop <name>, restart <name>.
+// jlist prints a warning line before the JSON array (like real PM2 can).
+const fs = require('fs');
+const path = require('path');
+
+const stateFile = path.join(process.env.PANEL_FAKE_STATE || '', 'pm2-state.json');
+const load = () => JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+const save = (s) => fs.writeFileSync(stateFile, JSON.stringify(s));
+
+const [verb, name] = process.argv.slice(2);
+
+if (verb === 'jlist') {
+  const s = load();
+  process.stdout.write('PM2 vFake: test double — warning line before JSON\n');
+  const arr = Object.entries(s.apps).map(([n, a], i) => ({
+    name: n,
+    pm_id: i,
+    pid: a.pid,
+    monit: { cpu: a.cpu || 0, memory: a.mem || 0 },
+    pm2_env: {
+      status: a.status,
+      pm_uptime: a.uptimeStart || Date.now(),
+      restart_time: a.restarts || 0,
+      unstable_restarts: a.unstable || 0,
+      pm_exec_path: a.exec,
+      pm_cwd: a.cwd,
+      pm_out_log_path: a.out || null,
+      pm_err_log_path: a.err || null,
+      exec_mode: 'fork_mode'
+    }
+  }));
+  process.stdout.write(JSON.stringify(arr));
+} else if (verb === 'start' || verb === 'stop' || verb === 'restart') {
+  const s = load();
+  const a = s.apps[name];
+  if (!a) { process.stderr.write(`[FakePM2] Process ${name} not found\n`); process.exit(1); }
+  if (verb === 'start') { a.status = 'online'; a.pid = a.fixturePid; a.uptimeStart = Date.now(); }
+  if (verb === 'stop') { a.status = 'stopped'; a.pid = 0; }
+  // restart gets a NEW pid, like a real restart (old pid is dead).
+  if (verb === 'restart') { a.status = 'online'; a.pid = a.fixturePid + 5000; a.restarts = (a.restarts || 0) + 1; a.uptimeStart = Date.now(); }
+  save(s);
+  process.stdout.write(`[FakePM2] ${verb} ${name}: ok\n`);
+} else {
+  process.stderr.write(`[FakePM2] unsupported: ${verb}\n`);
+  process.exit(2);
+}

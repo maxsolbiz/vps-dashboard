@@ -1,0 +1,8 @@
+{
+  "default_actions": ["start", "stop", "restart"],
+  "deny": {},
+  "actions_enabled": false,
+  "ignore_paths": [],
+  "logs_disabled": ["meezan-*", "hbl-*", "telegram-bot"],
+  "panel_name": "vps-control-panel"
+}

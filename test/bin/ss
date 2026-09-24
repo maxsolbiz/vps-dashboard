@@ -1,0 +1,5 @@
+#!/usr/bin/env node
+'use strict';
+// Fake `ss`: prints the fixture socket table, ignores argv.
+const fs = require('fs');
+process.stdout.write(fs.readFileSync(process.env.PANEL_FAKE_SS, 'utf8'));

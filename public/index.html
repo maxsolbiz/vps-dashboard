@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VPS Control Panel</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header>
+  <h1>VPS Control Panel</h1>
+  <div>
+    <span id="session"></span>
+    <button id="logout-btn" class="hidden">Logout</button>
+  </div>
+</header>
+
+<section id="login-view" class="card hidden">
+  <h2>Login</h2>
+  <input id="login-user" placeholder="username" autocomplete="username">
+  <input id="login-pass" type="password" placeholder="password" autocomplete="current-password">
+  <button id="login-btn">Login</button>
+  <p class="err" id="login-err"></p>
+</section>
+
+<main id="app-view" class="hidden">
+  <div id="policy-banner" class="hidden warn"></div>
+  <section class="card">
+    <h2>Discovery
+      <button id="scan-btn">SCAN VPS</button>
+      <span id="scan-meta" class="muted"></span>
+    </h2>
+    <p id="scan-diff" class="muted"></p>
+    <p id="scan-warn" class="warn"></p>
+    <div id="chips" class="chips"></div>
+  </section>
+
+  <section class="card">
+    <h2>Server
+      <button id="refresh-btn" title="refresh">⟳</button>
+      <label class="muted"><input type="checkbox" id="live-toggle" checked> live (10 s)</label>
+    </h2>
+    <div id="server" class="grid"></div>
+  </section>
+
+  <section class="card">
+    <h2>Applications</h2>
+    <div class="filters">
+      <input id="search" placeholder="search name, domain, port…">
+      <button data-f="all" class="on">All</button>
+      <button data-f="production">Production</button>
+      <button data-f="test">Test</button>
+      <button data-f="utility">Utility</button>
+      <button data-f="unclassified">Unclassified</button>
+    </div>
+    <h3>Managed apps (PM2)</h3>
+    <table id="apps-pm2"><thead><tr>
+      <th>Name</th><th>Cat</th><th>Status</th><th>PID</th><th>CPU</th><th>RAM</th>
+      <th>Uptime</th><th>Ports</th><th>↺</th><th>Action</th>
+    </tr></thead><tbody></tbody></table>
+    <h3>Web sites</h3>
+    <table id="apps-web"><thead><tr>
+      <th>Name</th><th>Status</th><th>Domains</th><th>Root</th>
+    </tr></thead><tbody></tbody></table>
+    <h3>Unmanaged</h3>
+    <table id="apps-unmanaged"><thead><tr>
+      <th>Name</th><th>Status</th><th>PID</th><th>CPU</th><th>RAM</th><th>Note</th>
+    </tr></thead><tbody></tbody></table>
+    <h3>Infrastructure</h3>
+    <table id="apps-infra"><thead><tr>
+      <th>Name</th><th>Status</th><th>Note</th>
+    </tr></thead><tbody></tbody></table>
+  </section>
+
+  <section class="card">
+    <h2>Top consumers</h2>
+    <div class="cols">
+      <div><h3>CPU</h3><ol id="top-cpu"></ol></div>
+      <div><h3>RAM</h3><ol id="top-ram"></ol></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Logs <span id="log-app" class="muted"></span></h2>
+    <div>
+      <button id="log-out">stdout</button>
+      <button id="log-err">stderr</button>
+    </div>
+    <pre id="logs">(use an app's Logs button)</pre>
+  </section>
+
+  <section class="card">
+    <h2>Audit log</h2>
+    <table id="audit">
+      <thead><tr><th>Time</th><th>User</th><th>App</th><th>Action</th><th>Result</th><th>IP</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+</main>
+
+<div id="modal" class="hidden">
+  <div class="modal-body">
+    <h3 id="modal-title"></h3>
+    <p id="modal-text"></p>
+    <div id="modal-confirm-name-wrap" class="hidden">
+      <label>Type the app name to confirm stop:</label>
+      <input id="modal-confirm-name" placeholder="app name">
+    </div>
+    <button id="modal-ok">Confirm</button>
+    <button id="modal-cancel">Cancel</button>
+  </div>
+</div>
+
+<div id="toasts"></div>
+<script src="/app.js"></script>
+</body>
+</html>
