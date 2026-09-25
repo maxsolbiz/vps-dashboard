@@ -147,7 +147,11 @@ test('renderScan does not throw and honours the greyed fallback end-to-end', () 
   // the browser but was invisible to actionButtons-only tests.
   const { renderScan, state } = require(path.join(__dirname, '..', 'public', 'app.js'));
   const cells = {};
-  const mk = (id) => ({ innerHTML: '', textContent: '', querySelectorAll: () => [], classList: { add() {}, remove() {} } });
+  const mk = (id) => ({
+    innerHTML: '', textContent: '', value: '', dataset: {},
+    querySelectorAll: () => [], addEventListener() {}, focus() {}, appendChild() {}, remove() {},
+    classList: { add() {}, remove() {}, toggle() {} }
+  });
   global.document = {
     hidden: false,
     getElementById: (id) => (cells[id] = cells[id] || mk(id)),
