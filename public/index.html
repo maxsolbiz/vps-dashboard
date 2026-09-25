@@ -135,6 +135,54 @@
       </div>
 
       <div class="card">
+        <div class="card-head">
+          <h2>System detail</h2>
+          <span class="spacer"></span>
+          <span class="muted" id="sys-note">sampled every 5 s</span>
+        </div>
+        <div class="card-body">
+          <div class="sys-grid">
+            <div class="sys-cell">
+              <div class="sys-label">Per-core CPU</div>
+              <div class="core-bars" id="core-bars"></div>
+            </div>
+            <div class="sys-cell">
+              <div class="sys-label">Network <span class="trend-tag" id="net-iface">—</span></div>
+              <div class="net-rows">
+                <div class="net-row"><span class="net-dir">in</span><div class="net-bar"><i class="net-in" data-width="w0"></i></div><span class="net-val" id="net-rx">—</span></div>
+                <div class="net-row"><span class="net-dir">out</span><div class="net-bar"><i class="net-out" data-width="w0"></i></div><span class="net-val" id="net-tx">—</span></div>
+              </div>
+            </div>
+            <div class="sys-cell">
+              <div class="sys-label">TCP connections</div>
+              <div class="sys-kpis">
+                <div><span class="k" id="conn-total">—</span><span class="v">total</span></div>
+                <div><span class="k" id="conn-est">—</span><span class="v">established</span></div>
+                <div><span class="k" id="conn-tw">—</span><span class="v">time wait</span></div>
+                <div><span class="k" id="conn-listen">—</span><span class="v">listening</span></div>
+              </div>
+            </div>
+            <div class="sys-cell">
+              <div class="sys-label">Processes</div>
+              <div class="sys-kpis">
+                <div><span class="k" id="proc-total">—</span><span class="v">total</span></div>
+                <div><span class="k" id="proc-run">—</span><span class="v">runnable</span></div>
+                <div><span class="k" id="proc-created">—</span><span class="v">created</span></div>
+                <div><span class="k" id="ctx-rate">—</span><span class="v">ctx/s</span></div>
+              </div>
+            </div>
+            <div class="sys-cell">
+              <div class="sys-label">Kernel pressure</div>
+              <div class="sys-kpis">
+                <div><span class="k" id="oom-kill">—</span><span class="v">OOM kills</span></div>
+                <div><span class="k" id="maj-fault">—</span><span class="v">major faults</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
         <div class="card-head"><h2>Resource hotspots</h2></div>
         <div class="card-body cols">
           <div><h3>Top CPU</h3><ol class="rank" id="top-cpu"></ol></div>

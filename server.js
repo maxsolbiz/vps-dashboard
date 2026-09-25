@@ -23,6 +23,9 @@ const overviewlib = require('./lib/overview');
 const statuslib = require('./lib/status');
 const cpusampler = require('./lib/cpusampler');
 const ports = require('./lib/ports');
+const sysmetrics = require('./lib/sysmetrics');
+const metricshistory = require('./lib/history');
+const meminfo = require('./lib/meminfo');
 const { redactText } = require('./lib/redact');
 
 // ---------- tiny cookie helpers (no dependency) ----------
@@ -370,6 +373,97 @@ fastify.get('/api/overview', async (req, reply) => {
   return overviewlib.overview();
 });
 
+// Read-only monitoring feed. Series live in panel memory, so the graphs
+// survive a browser reload. ?range=ms trims to the requested window.
+fastify.get('/api/metrics', async (req, reply) => {
+  const user = currentUser(req);
+  if (!user) { deny(reply, 401, 'login required'); return; }
+  const range = parseInt(req.query.range || '0', 10);
+  const rows = metricshistory.get(range > 0 ? Math.min(range, 24 * 3600 * 1000) : 0);
+  return {
+    at: new Date().toISOString(),
+    cap: metricshistory.cap(),
+    size: rows.length,
+    latest: metricshistory.latest(),
+    cpu: metricshistory.stats('cpu'),
+    mem: metricshistory.stats('mem'),
+    load: metricshistory.stats('load'),
+    disk: metricshistory.stats('disk'),
+    series: rows
+  };
+});
+
+// ---------- metrics recorder ----------
+// Runs on the sampler's existing tick, so it adds no timer and spawns no
+// processes: everything below is either an in-memory value or a small /proc
+// file read. Any failure here is swallowed — metrics must never affect the
+// panel or the CPU sampler.
+let lastDisk = null;   // from the last overview build (df spawns; never per tick)
+let lastScanItems = [];
+let metricsTimer = null;
+
+function recordMetrics() {
+  try {
+    const s = sysmetrics.sample();
+    const snap = cpusampler.latest();
+    const mem = meminfo.readMemory();
+    // Read the overview's EXISTING cached build. This must never trigger a
+    // rebuild: the recorder runs on a timer and must not spawn ps/ss/df/pm2.
+    const built = overviewlib.lastBuilt();
+    if (built && built.system) {
+      lastDisk = built.system.disk ? parseFloat(built.system.disk.use_pct) : lastDisk;
+      if (built.apps && built.apps.length) lastScanItems = built.apps;
+    }
+    const apps = {};
+    // Per-app resource use from the process tree the sampler already walked,
+    // mapped to app names via the most recent scan. No extra work.
+    if (lastScanItems.length && snap && snap.procs) {
+      const byPid = new Map(snap.procs.map((p) => [p.pid, p]));
+      for (const item of lastScanItems) {
+        if (item.kind !== 'pm2' && item.kind !== 'panel') continue;
+        let rss = 0; let cpu = 0; let any = false;
+        for (const pid of item.pids || []) {
+          const p = byPid.get(pid);
+          if (!p) continue;
+          rss += p.rss_b || 0;
+          cpu += snap.pct.get(pid) || 0;
+          any = true;
+        }
+        if (any) apps[item.name] = { cpu: Math.round(cpu * 10) / 10, rss };
+      }
+    }
+    const iface = s.net && Object.keys(s.net)[0] ? s.net[Object.keys(s.net)[0]] : null;
+    metricshistory.push({
+      at: s.at,
+      cpu: snap && snap.system == null ? null : snap.system,
+      mem: mem.use_pct,
+      swap: mem.swap_total_b ? (mem.swap_used_b / mem.swap_total_b) * 100 : 0,
+      disk: lastDisk,
+      load: s.load1 == null ? null : s.load1,
+      cores: s.cpuCores,
+      rxBps: iface ? iface.rxBps : null,
+      txBps: iface ? iface.txBps : null,
+      conns: s.conns ? s.conns.total : null,
+      connEst: s.conns ? s.conns.established : null,
+      connTw: s.conns ? s.conns.timeWait : null,
+      connListen: s.conns ? s.conns.listen : null,
+      procs: s.procs,
+      running: s.running,
+      procsCreated: s.procsCreated,
+      ctxtRate: s.ctxtRate,
+      majFault: s.majFault,
+      oomKill: s.oomKill,
+      apps
+    });
+  } catch (_) { /* best effort */ }
+}
+
+// NOTE: deliberately no onResponse hook here. Rebuilding the overview on every
+// response would re-populate the cache immediately after an action clears it,
+// making post-action reads return stale data. The recorder instead reads the
+// overview's own cached build (see overviewlib.lastBuilt), which never triggers
+// a rebuild.
+
 // ---------- per-app meta (display fields only) ----------
 fastify.patch('/api/apps/:id/meta', async (req, reply) => {
   if (!guardWrite(req, reply)) return;
@@ -522,7 +616,7 @@ fastify.get('/api/audit', async (req, reply) => {
 });
 
 // ---------- start ----------
-fastify.addHook('onClose', async () => { cpusampler.stop(); });
+fastify.addHook('onClose', async () => { cpusampler.stop(); metricshistory.clear(); });
 
 async function start() {
   if (!['127.0.0.1', 'localhost', '::1'].includes(config.host)) {
@@ -530,7 +624,13 @@ async function start() {
     console.error(`refusing to bind non-loopback host: ${config.host}`);
     process.exit(1);
   }
-  if (config.samplerOn) cpusampler.start();
+  if (config.samplerOn) {
+    cpusampler.start();
+    // Record metrics on the sampler's own cadence rather than a second timer.
+    // unref'd so it can never keep the process alive.
+    metricsTimer = setInterval(recordMetrics, config.samplerMs);
+    if (metricsTimer.unref) metricsTimer.unref();
+  }
   await fastify.listen({ host: config.host, port: config.port });
   // eslint-disable-next-line no-console
   console.log(`panel on http://${config.host}:${config.port} (actions ${actionsEnabled() ? 'ENABLED' : 'disabled'})`);

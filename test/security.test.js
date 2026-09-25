@@ -104,6 +104,21 @@ test('UI assets contain no inline styles or data: URIs (strict CSP stays strict)
   assert.equal(fav.status, 204, 'favicon.ico is served (204), not a data: URI');
 });
 
+test('/api/metrics is read-only and requires a session', async () => {
+  const anon = await fetch(`${srv.base}/api/metrics`);
+  assert.equal(anon.status, 401, 'no cookie -> 401');
+  // GET only: the route must not exist as a mutating verb.
+  for (const m of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+    const r = await fetch(`${srv.base}/api/metrics`, { method: m, headers: authed(sess), body: '{}' });
+    assert.ok(r.status === 404 || r.status === 405, `${m} on /api/metrics -> ${r.status}`);
+  }
+  const ok = await fetch(`${srv.base}/api/metrics`, { headers: authed(sess) });
+  assert.equal(ok.status, 200);
+  const body = await ok.json();
+  assert.ok(Array.isArray(body.series), 'series is an array');
+  assert.equal(typeof body.cap, 'number', 'buffer cap is advertised');
+});
+
 test('/api/setup does not exist -> 404', async () => {
   for (const m of ['GET', 'POST']) {
     const r = await fetch(`${srv.base}/api/setup`, { method: m });

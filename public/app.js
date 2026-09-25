@@ -327,6 +327,92 @@ function setNav(open) {
 }
 function closeNav() { if (navOpen) setNav(false); }
 
+// ---------- dashboard: server-side metric history ----------
+// /api/metrics is a panel-side ring buffer, so these graphs SURVIVE a page
+// reload. Fall back to the live overview only for the latest reading.
+function fmtBytes2(b) { return fmtBytes(b); }
+function fmtBps(v) {
+  if (v == null || isNaN(v)) return '—';
+  if (v < 1024) return `${v} B/s`;
+  if (v < 1024 * 1024) return `${(v / 1024).toFixed(1)} KB/s`;
+  return `${(v / 1048576).toFixed(1)} MB/s`;
+}
+function fmtNum(n) {
+  if (n == null || isNaN(n)) return '—';
+  if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}k`;
+  return String(n);
+}
+
+function renderSystem(m) {
+  const L = m && m.latest;
+  if (!L) return;
+  // per-core CPU
+  const cores = $('core-bars');
+  if (cores) {
+    const list = Array.isArray(L.cores) ? L.cores : [];
+    cores.innerHTML = list.length
+      ? list.map((c) => {
+        const p = c.pct == null ? 0 : c.pct;
+        const cls = p >= 85 ? 'max' : p >= 60 ? 'hot' : '';
+        return `<div class="core-row"><span class="core-name">${esc(c.id)}</span>`
+          + `<span class="core-track"><i class="core-fill ${cls}" data-width="${widthClass(p)}"></i></span>`
+          + `<span class="core-val">${p.toFixed(0)}%</span></div>`;
+      }).join('')
+      : '<div class="muted">collecting…</div>';
+  }
+  // network
+  const rx = L.rxBps; const tx = L.txBps;
+  const peak = Math.max(1, rx || 0, tx || 0);
+  const inEl = document.querySelector('.net-in');
+  const outEl = document.querySelector('.net-out');
+  if (inEl) inEl.setAttribute('data-width', widthClass((rx / peak) * 100));
+  if (outEl) outEl.setAttribute('data-width', widthClass((tx / peak) * 100));
+  $('net-rx').textContent = fmtBps(rx);
+  $('net-tx').textContent = fmtBps(tx);
+  $('net-iface').textContent = m.iface || 'eth0';
+
+  // connections / processes / pressure
+  $('conn-total').textContent = L.conns == null ? '—' : L.conns;
+  $('conn-est').textContent = L.connEst == null ? '—' : L.connEst;
+  $('conn-tw').textContent = L.connTw == null ? '—' : L.connTw;
+  $('conn-listen').textContent = L.connListen == null ? '—' : L.connListen;
+  $('proc-total').textContent = L.procs == null ? '—' : L.procs;
+  $('proc-run').textContent = L.running == null ? '—' : L.running;
+  $('proc-created').textContent = fmtNum(L.procsCreated);
+  $('ctx-rate').textContent = fmtNum(L.ctxRate);
+  const oom = $('oom-kill');
+  oom.textContent = L.oomKill == null ? '—' : L.oomKill;
+  oom.className = `k${L.oomKill > 0 ? ' crit' : ''}`;
+  $('maj-fault').textContent = fmtNum(L.majFault);
+  $('sys-note').textContent = `${m.size || 0} of ${m.cap || 0} samples · 5 s interval`;
+}
+
+// Charts now read the SERVER buffer, so a reload keeps the graph.
+function renderSeries(m) {
+  const rows = (m && m.series) || [];
+  if (!rows.length) return;
+  const pick = (key) => rows.map((r) => ({ t: r.t, v: r[key] })).filter((p) => typeof p.v === 'number' && !isNaN(p.v));
+  const sys = { cpus: (state.overview && state.overview.system && state.overview.system.cpus) || 2 };
+  trend.cpu = pick('cpu'); trend.mem = pick('mem'); trend.load = pick('load');
+  drawChart('chart-cpu', trend.cpu, 100);
+  drawChart('chart-mem', trend.mem, 100);
+  drawChart('chart-load', trend.load, Math.max(1, sys.cpus * 2));
+  $('val-cpu').textContent = m.cpu ? `now ${m.cpu.cur.toFixed(1)}% · min ${m.cpu.min.toFixed(1)}% · avg ${m.cpu.avg.toFixed(1)}% · max ${m.cpu.max.toFixed(1)}%` : 'collecting…';
+  $('val-mem').textContent = m.mem ? `now ${m.mem.cur.toFixed(1)}% · min ${m.mem.min.toFixed(1)}% · avg ${m.mem.avg.toFixed(1)}% · max ${m.mem.max.toFixed(1)}%` : 'collecting…';
+  $('val-load').textContent = m.load ? `now ${m.load.cur.toFixed(2)} · min ${m.load.min.toFixed(2)} · avg ${m.load.avg.toFixed(2)} · max ${m.load.max.toFixed(2)}` : 'collecting…';
+  $('trend-note').textContent = `${rows.length} sample${rows.length === 1 ? '' : 's'} · panel history (survives reload)`;
+}
+
+async function refreshMetrics() {
+  try {
+    const m = await api('/api/metrics');
+    renderSeries(m);
+    renderSystem(m);
+  } catch (e) { /* metrics are best-effort; the rest of the panel still works */ }
+}
+
 // ---------- formatting ----------
 function fmtBytes(b) {
   if (b == null || isNaN(b)) return '—';
@@ -683,6 +769,7 @@ async function refreshAll() {
     }
   }
   pushTrend(ov);
+  refreshMetrics();
   try {
     const d = await api('/api/audit?limit=50');
     const entries = d.entries || [];
@@ -1007,6 +1094,7 @@ if (typeof module !== 'undefined' && module.exports) {
     actionButtons, isLiveStatus, esc, renderScan, state,
     renderHealth, renderServerCard, renderProcesses, renderPorts,
     renderAlerts, renderPolicyInfo, showView, VIEWS, pushTrend, drawChart, fmtBytes,
-    setNav, closeNav, switchLabel, isMobileNav, _resetTrend
+    setNav, closeNav, switchLabel, isMobileNav, _resetTrend,
+    renderSeries, renderSystem, refreshMetrics
   };
 }
