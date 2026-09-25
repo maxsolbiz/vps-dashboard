@@ -162,12 +162,14 @@ function buildFixtures() {
   const now = Date.now();
   const base = {
     apps: {
-      'web-pwa': { status: 'online', pid: 100, fixturePid: 100, cwd: webPwa, exec: '/usr/bin/npm', restarts: 12, unstable: 0, cpu: 0.1, mem: 16384000, uptimeStart: now - 200000000, out: path.join(logs, 'web-pwa-out.log'), err: path.join(logs, 'web-pwa-err.log') },
-      'shop-api': { status: 'online', pid: 200, fixturePid: 200, cwd: api, exec: `${api}/dist/index.js`, restarts: 3, unstable: 0, cpu: 0.8, mem: 61440000, uptimeStart: now - 150000000, out: path.join(logs, 'web-pwa-out.log'), err: path.join(logs, 'web-pwa-err.log') },
-      'bank-api': { status: 'online', pid: 300, fixturePid: 300, cwd: path.join(roots.root, 'bank'), exec: `${roots.root}/bank/dist/server.js`, restarts: 1, unstable: 0, cpu: 0.5, mem: 46080000, uptimeStart: now - 140000000, out: path.join(logs, 'bank-api-out.log'), err: null },
+      // indirect (npm wrapper) on a public port, 2.5s of port lag after stop
+      'web-pwa': { status: 'online', pid: 100, fixturePid: 100, cwd: webPwa, exec: '/usr/bin/npm', args: ['start', '--', '-p', '3000'], fixturePort: 3000, publicBind: true, portLagMs: 2500, restarts: 12, unstable: 0, cpu: 0.1, mem: 16384000, uptimeStart: now - 200000000, out: path.join(logs, 'web-pwa-out.log'), err: path.join(logs, 'web-pwa-err.log') },
+      // direct app (its own node binary): no port polling on stop
+      'shop-api': { status: 'online', pid: 200, fixturePid: 200, cwd: api, exec: `${api}/dist/index.js`, fixturePort: 3103, restarts: 3, unstable: 0, cpu: 0.8, mem: 61440000, uptimeStart: now - 150000000, out: path.join(logs, 'web-pwa-out.log'), err: path.join(logs, 'web-pwa-err.log') },
+      'bank-api': { status: 'online', pid: 300, fixturePid: 300, cwd: path.join(roots.root, 'bank'), exec: `${roots.root}/bank/dist/server.js`, fixturePort: 5000, publicBind: true, pidChangesOnRestart: true, restarts: 1, unstable: 0, cpu: 0.5, mem: 46080000, uptimeStart: now - 140000000, out: path.join(logs, 'bank-api-out.log'), err: null },
       'nightly-purge': { status: 'stopped', pid: 0, fixturePid: 0, cwd: nightly, exec: `${nightly}/purge.mjs`, restarts: 0, unstable: 1, cpu: 0, mem: 0, uptimeStart: 0, out: null, err: null },
       'new-app': { status: 'online', pid: 400, fixturePid: 400, cwd: newapp, exec: `${newapp}/index.js`, restarts: 0, unstable: 0, cpu: 0.3, mem: 30720000, uptimeStart: now - 10000000, out: path.join(logs, 'web-pwa-out.log'), err: null },
-      'invoice-fe': { status: 'online', pid: 700, fixturePid: 700, cwd: roots.root, exec: `${invoice}/start-frontend.sh`, restarts: 2, unstable: 0, cpu: 0.3, mem: 25600000, uptimeStart: now - 8000000, out: path.join(logs, 'web-pwa-out.log'), err: null },
+      'invoice-fe': { status: 'online', pid: 700, fixturePid: 700, cwd: roots.root, exec: `${invoice}/start-frontend.sh`, fixturePort: 3002, restarts: 2, unstable: 0, cpu: 0.3, mem: 25600000, uptimeStart: now - 8000000, out: path.join(logs, 'web-pwa-out.log'), err: null },
       'flaky-worker': { status: 'waiting restart', pid: 0, fixturePid: 0, cwd: nightly, exec: `${nightly}/worker.mjs`, restarts: 41, unstable: 3, cpu: 0, mem: 0, uptimeStart: 0, out: null, err: null },
       'telegram-bot': { status: 'online', pid: 800, fixturePid: 800, cwd: path.join(roots.root, 'meezan-bank'), exec: `${roots.root}/meezan-bank/backend/scripts/telegram-bot.mjs`, restarts: 0, unstable: 0, cpu: 0.4, mem: 25165824, uptimeStart: now - 50000000, out: null, err: null },
       'vps-control-panel': { status: 'online', pid: 500, fixturePid: 500, cwd: PANEL_ROOT, exec: `${PANEL_ROOT}/server.js`, restarts: 0, unstable: 0, cpu: 0.2, mem: 25600000, uptimeStart: now - 9000000, out: null, err: null }

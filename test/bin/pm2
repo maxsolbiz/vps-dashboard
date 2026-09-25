@@ -37,10 +37,20 @@ if (verb === 'jlist') {
   const s = load();
   const a = s.apps[name];
   if (!a) { process.stderr.write(`[FakePM2] Process ${name} not found\n`); process.exit(1); }
-  if (verb === 'start') { a.status = 'online'; a.pid = a.fixturePid; a.uptimeStart = Date.now(); }
-  if (verb === 'stop') { a.status = 'stopped'; a.pid = 0; }
-  // restart gets a NEW pid, like a real restart (old pid is dead).
-  if (verb === 'restart') { a.status = 'online'; a.pid = a.fixturePid + 5000; a.restarts = (a.restarts || 0) + 1; a.uptimeStart = Date.now(); }
+  if (verb === 'start') { a.status = 'online'; a.pid = a.fixturePid; a.uptimeStart = Date.now(); delete a.stoppedAt; }
+  if (verb === 'stop') {
+    a.status = 'stopped'; a.pid = 0; a.stoppedAt = Date.now();
+    if (a.portLagMs) a.lingeringPid = a.fixturePid + 1; // orphan child keeps the port
+  }
+  // restart gets a NEW pid only for apps that opt in (pidChangesOnRestart),
+  // so static ps/ss fixtures stay in sync for the others.
+  if (verb === 'restart') {
+    a.status = 'online';
+    a.pid = a.pidChangesOnRestart ? (a.fixturePid + 5000) : a.fixturePid;
+    a.restarts = (a.restarts || 0) + 1;
+    a.uptimeStart = Date.now();
+    delete a.stoppedAt;
+  }
   save(s);
   process.stdout.write(`[FakePM2] ${verb} ${name}: ok\n`);
 } else {

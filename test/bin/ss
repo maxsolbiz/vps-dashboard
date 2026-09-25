@@ -1,5 +1,24 @@
 #!/usr/bin/env node
 'use strict';
-// Fake `ss`: prints the fixture socket table, ignores argv.
+// Fake `ss`: derives listening ports from the fake pm2 state, so stop/start
+// actually moves ports. An app may declare portLagMs: its port lingers after
+// a stop for that long, modelling an npm-wrapper child that outlives PM2.
 const fs = require('fs');
-process.stdout.write(fs.readFileSync(process.env.PANEL_FAKE_SS, 'utf8'));
+const path = require('path');
+
+const state = JSON.parse(fs.readFileSync(path.join(process.env.PANEL_FAKE_STATE, 'pm2-state.json'), 'utf8'));
+const now = Date.now();
+const lines = [];
+
+for (const [name, a] of Object.entries(state.apps)) {
+  const online = a.status === 'online';
+  const lag = Number(a.portLagMs || 0);
+  const lingering = !online && lag > 0 && (!a.stoppedAt || now - a.stoppedAt < lag);
+  if ((online || lingering) && a.fixturePort) {
+    const bind = a.publicBind ? '0.0.0.0' : '127.0.0.1';
+    const pid = online ? a.fixturePid : (a.lingeringPid || 99999);
+    lines.push(`LISTEN 0 511 ${bind}:${a.fixturePort} 0.0.0.0:* users:(("${name}",pid=${pid},fd=18))`);
+  }
+}
+
+process.stdout.write(lines.join('\n') + (lines.length ? '\n' : ''));

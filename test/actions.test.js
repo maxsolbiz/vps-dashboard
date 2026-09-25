@@ -180,6 +180,75 @@ test('overview uses a fresh ps when the sampler snapshot misses jlist pids', asy
   }
 });
 
+test('indirect app: stop reports port_released + waited_ms, start blocked while lagging', async () => {
+  const scan = () => fetch(`${srv.base}/api/scan`, { method: 'POST', headers: authed(sess), body: '{}' }).then((r) => r.json());
+  const before = (await scan()).items.find((i) => i.id === 'web-pwa');
+  assert.equal(before.indirect, true, 'npm wrapper detected as indirect');
+  assert.equal(before.start_blocked, false, 'running app is not start-blocked');
+
+  const stop = await act('web-pwa', { action: 'stop', confirm: true, confirmName: 'web-pwa' });
+  assert.equal(stop.status, 200);
+  assert.equal(stop.body.port_released, true, `port freed after lag, waited ${stop.body.waited_ms}ms`);
+  assert.ok(stop.body.waited_ms >= 500, `actually waited, got ${stop.body.waited_ms}`);
+  assert.equal(stop.body.status, 'stopped');
+});
+
+test('start guard: blocked while an orphan holds the port, allowed once clear', async () => {
+  const fs = require('fs');
+  const path = require('path');
+  const stateFile = path.join(process.env.PANEL_FAKE_STATE, 'pm2-state.json');
+  const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+  state.apps['web-pwa'].status = 'stopped';
+  state.apps['web-pwa'].pid = 0;
+  state.apps['web-pwa'].stoppedAt = Date.now(); // inside portLagMs: port still held
+  state.apps['web-pwa'].lingeringPid = 99999;
+  fs.writeFileSync(stateFile, JSON.stringify(state));
+  try {
+    const sc = await fetch(`${srv.base}/api/scan`, { method: 'POST', headers: authed(sess), body: '{}' }).then((r) => r.json());
+    const item = sc.items.find((i) => i.id === 'web-pwa');
+    assert.equal(item.start_blocked, true, 'scan flags the orphan holder');
+    assert.equal(item.holder_pid, 99999, 'names the holder pid');
+    const blocked = await act('web-pwa', { action: 'start', confirm: true });
+    assert.equal(blocked.status, 409);
+    assert.match(blocked.body.error, /99999/, 'error names the pid');
+  } finally {
+    // let the lag expire, then the port is genuinely free
+    state.apps['web-pwa'].stoppedAt = Date.now() - 999999;
+    fs.writeFileSync(stateFile, JSON.stringify(state));
+  }
+  const sc2 = await fetch(`${srv.base}/api/scan`, { method: 'POST', headers: authed(sess), body: '{}' }).then((r) => r.json());
+  assert.equal(sc2.items.find((i) => i.id === 'web-pwa').start_blocked, false, 'allowed once the port clears');
+  const ok = await act('web-pwa', { action: 'start', confirm: true });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.body.verified, true, 'post-start verification confirms online + port bound');
+});
+
+test('direct app: stop does not poll the port', async () => {
+  const sc = await fetch(`${srv.base}/api/scan`, { method: 'POST', headers: authed(sess), body: '{}' }).then((r) => r.json());
+  const item = sc.items.find((i) => i.id === 'shop-api');
+  assert.equal(item.indirect, false, 'own node binary is not indirect');
+  const stop = await act('shop-api', { action: 'stop', confirm: true, confirmName: 'shop-api' });
+  assert.equal(stop.status, 200);
+  assert.equal(stop.body.port_released, undefined, 'no port polling for a direct app');
+});
+
+test('restart reports verified:true for an online app with a bound port', async () => {
+  const r = await act('shop-api', { action: 'restart', confirm: true });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.verified, true);
+  assert.equal(r.body.port_bound, true);
+});
+
+test('concurrent action returns 409, not queued', async () => {
+  const [a, b] = await Promise.all([
+    act('web-pwa', { action: 'restart', confirm: true }),
+    act('shop-api', { action: 'restart', confirm: true })
+  ]);
+  const codes = [a.status, b.status].sort();
+  assert.ok(codes.includes(409), `one request must be refused with 409, got ${codes}`);
+  assert.ok(codes.includes(200), `the other proceeds, got ${codes}`);
+});
+
 test('allow list: unlisted app has no actions and is blocked', async () => {
   const sc = await fetch(`${srv.base}/api/scan`, { method: 'POST', headers: authed(sess), body: '{}' }).then((r) => r.json());
   const item = sc.items.find((i) => i.id === 'telegram-bot');

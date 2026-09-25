@@ -22,6 +22,7 @@ const scanlib = require('./lib/scan');
 const overviewlib = require('./lib/overview');
 const statuslib = require('./lib/status');
 const cpusampler = require('./lib/cpusampler');
+const ports = require('./lib/ports');
 const { redactText } = require('./lib/redact');
 
 // ---------- tiny cookie helpers (no dependency) ----------
@@ -109,12 +110,13 @@ function loginFail(ip) {
 }
 function loginOk(ip) { attempts.delete(ip); }
 
-// ---------- action locks: one global, one per app ----------
+// ---------- action locks: ONE action server-wide (no queueing) ----------
 let globalAction = null;
 const appLocks = new Map();
 async function withActionLock(id, fn) {
-  if (globalAction) throw Object.assign(new Error('another action is already running'), { status: 429 });
-  if (appLocks.get(id)) throw Object.assign(new Error(`action already running for ${id}`), { status: 429 });
+  if (globalAction) {
+    throw Object.assign(new Error(`another action is already running (${globalAction}); try again when it finishes`), { status: 409 });
+  }
   globalAction = id;
   appLocks.set(id, true);
   try {
@@ -148,6 +150,11 @@ function currentUser(req) {
 
 function deny(reply, code, error) {
   reply.code(code).send({ error });
+}
+
+function expectedPort(item) {
+  const p = (item.ports || [])[0];
+  return p ? p.port : '?';
 }
 
 function guardHost(req, reply) {
@@ -372,20 +379,47 @@ fastify.post('/api/apps/:id/actions', async (req, reply) => {
     deny(reply, 400, 'stop requires typing the app name');
     return;
   }
+  // Start guard: a wrapper-launched app whose port is still held by a pid PM2
+  // doesn't own would race and fail. Refuse instead of firing a doomed start.
+  if (action === 'start' && item.start_blocked) {
+    store.audit({ ...attempt, action, result: 'blocked', error: `port held by pid ${item.holder_pid}`, ip: ipOf(req) });
+    deny(reply, 409, `start blocked: port ${expectedPort(item)} is still held by pid ${item.holder_pid} (not a known PM2 process)`);
+    return;
+  }
   try {
     const outcome = await withActionLock(id, async () => {
       await pm2.action(action, item.name); // name re-validated against live jlist
       await cpusampler._tick(); // refresh sampler baseline so the next scan/overview sees new pids
       const fresh = await pm2.jlist();
       const live = fresh.find((x) => x.name === item.name);
-      return { status: live ? statuslib.mapStatus(live.status) : 'missing', pid: live ? live.pid : 0 };
+      const base = { status: live ? statuslib.mapStatus(live.status) : 'missing', pid: live ? live.pid : 0 };
+      const knownPort = (item.ports || []).map((p) => p.port).filter(Boolean);
+
+      if (action === 'stop' && item.indirect && knownPort.length) {
+        // Observe only: never kill anything, just wait for the listener to go.
+        const freed = await ports.waitFree(knownPort[0], 10000);
+        return { ...base, port_released: freed.port_released, waited_ms: freed.waited_ms, port: freed.port, holder_pid: freed.holder_pid || null };
+      }
+      if (action === 'start' || action === 'restart') {
+        // The pm2 action already succeeded; verification is best-effort and a
+        // timeout must not turn a real success into a failure.
+        const on = await pm2.waitOnline(item.name, 15000);
+        let portBound = null;
+        if (knownPort.length) {
+          const held = await ports.holders(knownPort[0]).catch(() => []);
+          portBound = held.length > 0;
+        }
+        const verified = on.verified && (portBound === null ? true : portBound);
+        return { ...base, verified, waited_ms: on.waited_ms, port_bound: portBound };
+      }
+      return base;
     });
     overviewlib.clearOverview(); // rows must re-read real state on next poll
     store.audit({ ...attempt, action, result: 'ok', ip: ipOf(req) });
-    return { ok: true, action, app: id, status: outcome.status, pid: outcome.pid };
+    return { ok: true, action, app: id, ...outcome };
   } catch (err) {
-    const code = err.status === 429 ? 429 : 500;
-    store.audit({ ...attempt, action, result: code === 429 ? 'blocked' : 'failed', error: err.message, ip: ipOf(req) });
+    const code = err.status === 409 || err.status === 429 ? 409 : 500;
+    store.audit({ ...attempt, action, result: code === 409 ? 'blocked' : 'failed', error: err.message, ip: ipOf(req) });
     deny(reply, code, redactText(err.message).slice(0, 200));
   }
 });

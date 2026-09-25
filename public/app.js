@@ -109,11 +109,22 @@ function renderScan(r) {
     const live = isLiveStatus(a.status);
     const pend = state.pending.has(a.id);
     const btns = [];
+    const allowed = a.actions || [];
+    const gate = 'disabled title="not enabled in policy" style="opacity:.45;cursor:not-allowed"';
     if (a.kind === 'pm2') {
-      if (!live && a.actions.includes('start')) btns.push(`<button data-act="start" data-id="${esc(a.id)}" ${pend ? 'disabled' : ''}>Start</button>`);
-      if (live && a.actions.includes('stop')) btns.push(`<button class="danger" data-act="stop" data-id="${esc(a.id)}" ${pend ? 'disabled' : ''}>Stop</button>`);
-      if (live && a.actions.includes('restart')) btns.push(`<button data-act="restart" data-id="${esc(a.id)}" ${pend ? 'disabled' : ''}>Restart</button>`);
+      if (!live && allowed.includes('start')) {
+        if (a.start_blocked) {
+          btns.push(`<button disabled title="port ${(a.ports || [])[0] ? a.ports[0].port : '?'} still held by pid ${a.holder_pid}" style="opacity:.45;cursor:not-allowed">Start</button>`);
+        } else {
+          btns.push(`<button data-act="start" data-id="${esc(a.id)}" ${pend ? 'disabled' : ''}>Start</button>`);
+        }
+      }
+      if (live && allowed.includes('stop')) btns.push(`<button class="danger" data-act="stop" data-id="${esc(a.id)}" ${pend ? 'disabled' : ''}>Stop</button>`);
+      if (live && allowed.includes('restart')) btns.push(`<button data-act="restart" data-id="${esc(a.id)}" ${pend ? 'disabled' : ''}>Restart</button>`);
       if (a.logs_enabled) btns.push(`<button class="ghost" data-act="logs" data-id="${esc(a.id)}">Logs</button>`);
+      if (!btns.length) {
+        btns.push(`<button ${gate}>Start</button><button ${gate}>Stop</button><button ${gate}>Restart</button>`);
+      }
     }
     const ports = (a.ports || []).map((p) => `${p.port}${p.public ? ' ⚠' : ''}`).join(', ') || '—';
     const drift = a.kind === 'pm2' && live && r.drift && r.drift.running_not_in_dump.includes(a.name)
