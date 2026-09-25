@@ -76,6 +76,32 @@ async function doScan() {
   await refreshAll();
 }
 
+// Builds the action-button cell for one pm2 row. Pure: no DOM, so it is unit
+// testable (test/ui.test.js). The greyed Start/Stop/Restart fallback keys off
+// the app having no allowed actions, NOT off the combined button list being
+// empty — otherwise a Logs button suppresses the fallback and the action
+// buttons vanish instead of showing disabled.
+function actionButtons(a, pend) {
+  if (a.kind !== 'pm2') return '';
+  const live = isLiveStatus(a.status);
+  const allowed = a.actions || [];
+  const btns = [];
+  if (!live && allowed.includes('start')) {
+    if (a.start_blocked) {
+      btns.push(`<button disabled title="port ${(a.ports || [])[0] ? a.ports[0].port : '?'} still held by pid ${a.holder_pid}">Start</button>`);
+    } else {
+      btns.push(`<button data-act="start" data-id="${esc(a.id)}" ${pend ? 'disabled' : ''}>Start</button>`);
+    }
+  }
+  if (live && allowed.includes('stop')) btns.push(`<button class="danger" data-act="stop" data-id="${esc(a.id)}" ${pend ? 'disabled' : ''}>Stop</button>`);
+  if (live && allowed.includes('restart')) btns.push(`<button data-act="restart" data-id="${esc(a.id)}" ${pend ? 'disabled' : ''}>Restart</button>`);
+  if (!allowed.length) {
+    btns.push('<button disabled title="not enabled in policy">Start</button><button disabled title="not enabled in policy">Stop</button><button disabled title="not enabled in policy">Restart</button>');
+  }
+  if (a.logs_enabled) btns.push(`<button class="ghost" data-act="logs" data-id="${esc(a.id)}">Logs</button>`);
+  return btns.join(' ');
+}
+
 function renderScan(r) {
   $('scan-meta').textContent = r.scanned_at ? `last scan: ${r.scanned_at}${r.cached ? ' (cached)' : ''}${r.complete === false ? ' · INCOMPLETE' : ''}` : '';
   const diff = state.diff;
@@ -108,24 +134,7 @@ function renderScan(r) {
   document.querySelector('#apps-pm2 tbody').innerHTML = pm2rows.map((a) => {
     const live = isLiveStatus(a.status);
     const pend = state.pending.has(a.id);
-    const btns = [];
-    const allowed = a.actions || [];
-    const gate = 'disabled title="not enabled in policy"';
-    if (a.kind === 'pm2') {
-      if (!live && allowed.includes('start')) {
-        if (a.start_blocked) {
-          btns.push(`<button disabled title="port ${(a.ports || [])[0] ? a.ports[0].port : '?'} still held by pid ${a.holder_pid}">Start</button>`);
-        } else {
-          btns.push(`<button data-act="start" data-id="${esc(a.id)}" ${pend ? 'disabled' : ''}>Start</button>`);
-        }
-      }
-      if (live && allowed.includes('stop')) btns.push(`<button class="danger" data-act="stop" data-id="${esc(a.id)}" ${pend ? 'disabled' : ''}>Stop</button>`);
-      if (live && allowed.includes('restart')) btns.push(`<button data-act="restart" data-id="${esc(a.id)}" ${pend ? 'disabled' : ''}>Restart</button>`);
-      if (a.logs_enabled) btns.push(`<button class="ghost" data-act="logs" data-id="${esc(a.id)}">Logs</button>`);
-      if (!btns.length) {
-        btns.push(`<button ${gate}>Start</button><button ${gate}>Stop</button><button ${gate}>Restart</button>`);
-      }
-    }
+    const btns = actionButtons(a, pend);
     const ports = (a.ports || []).map((p) => `${p.port}${p.public ? ' ⚠' : ''}`).join(', ') || '—';
     const drift = a.kind === 'pm2' && live && r.drift && r.drift.running_not_in_dump.includes(a.name)
       ? '<span class="badge">not in dump</span>' : '';
@@ -134,7 +143,7 @@ function renderScan(r) {
       <td><span class="dot ${esc(a.status)}">●</span> ${esc(a.status)}</td>
       <td>${(a.pids || [])[0] || '—'}</td><td>${a.cpu_pct != null ? a.cpu_pct + '%' : '—'}</td>
       <td>${fmtMB(a.rss_b)}</td><td>${fmtUp(a.uptime_s)}</td><td>${esc(ports)}</td>
-      <td>${a.restarts != null ? a.restarts : '—'}</td><td>${btns.join(' ') || '<i>—</i>'}</td></tr>`;
+      <td>${a.restarts != null ? a.restarts : '—'}</td><td>${btns || '<i>—</i>'}</td></tr>`;
   }).join('');
   document.querySelector('#apps-web tbody').innerHTML = webrows.map((a) =>
     `<tr><td><b>${esc(a.display_name || a.name)}</b></td><td><span class="dot ${esc(a.status)}">●</span> ${esc(a.status)}</td>
@@ -232,6 +241,9 @@ function confirmModal(title, text, needName) {
   $('modal').classList.remove('hidden');
   return new Promise((resolve) => { modalResolve = resolve; });
 }
+// Browser-only bootstrap: event wiring + first load. Guarded so test/ui.test.js
+// can require this file for actionButtons() without a DOM.
+if (typeof document !== 'undefined') {
 $('modal-ok').addEventListener('click', () => { $('modal').classList.add('hidden'); if (modalResolve) modalResolve($('modal-confirm-name').value); });
 $('modal-cancel').addEventListener('click', () => { $('modal').classList.add('hidden'); if (modalResolve) modalResolve(null); });
 
@@ -308,6 +320,10 @@ $('logout-btn').addEventListener('click', async () => {
   await api('/api/auth/logout', { method: 'POST', body: '{}' });
   await refreshMe();
 });
+  setInterval(() => { if (state.live && state.me && !document.hidden) refreshAll(); }, 10000);
+  refreshMe();
+}
 
-setInterval(() => { if (state.live && state.me && !document.hidden) refreshAll(); }, 10000);
-refreshMe();
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { actionButtons, isLiveStatus, esc, renderScan, state };
+}
