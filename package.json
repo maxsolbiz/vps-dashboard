@@ -8,7 +8,7 @@
   "scripts": {
     "start": "node server.js",
     "create-admin": "node scripts/create-admin.js",
-    "test": "node --test test/scan.test.js test/actions.test.js test/security.test.js test/ratelimit.test.js test/cpu.test.js test/walk.test.js test/proxy.test.js test/ui.test.js test/password.test.js"
+    "test": "node --test test/scan.test.js test/actions.test.js test/security.test.js test/ratelimit.test.js test/cpu.test.js test/walk.test.js test/proxy.test.js test/ui.test.js test/password.test.js test/policytoggle.test.js"
   },
   "engines": {
     "node": ">=20 <23"

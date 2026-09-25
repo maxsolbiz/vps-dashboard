@@ -29,10 +29,24 @@ the health check fails.
 ## 1. Enabling or disabling actions
 
 Two switches, both in `/root/vps-dashboard/data/policy.json` (read live, no
-restart). Never edit this file from the panel; the panel only writes
-`overrides.json`.
+restart).
 
-**Master switch** — off by default:
+**Master switch — use the toggle in the panel header.** Tick the `actions
+disabled / actions ENABLED` switch next to Logout. Turning it **on** asks you to
+type `ENABLE` to confirm; turning it **off** is a single click with no typing,
+so disarming is always fast. A successful toggle rescans automatically, so the
+Start/Stop/Restart buttons update without pressing SCAN VPS again.
+
+The toggle only ever writes `actions_enabled`. It cannot add an app to the allow
+list or change `deny` — arming the switch never widens *who* may act, only
+*whether* the panel may act at all.
+
+> If you flip the switch and the buttons still look greyed, press **SCAN VPS**.
+> The saved scan records the switch state from when it ran, so a scan taken
+> before the flip will keep showing the old state until a fresh one runs.
+
+Fallback (panel unreachable, or you want to arm it without logging in) — edit the
+file over SSH:
 
 ```sh
 ssh -i "$env:USERPROFILE\.ssh\meezan_vps" root@178.105.109.19 \
@@ -44,7 +58,8 @@ environment is an emergency kill-switch only; it is deliberately absent from
 `ecosystem.config.js`.
 
 **Allow list** — an app with no entry gets **no actions at all** (fail-closed,
-so new or renamed apps are inert until you list them):
+so new or renamed apps are inert until you list them). The panel does not edit
+this list; change it by hand in `policy.json`.
 
 ```json
 "allow": { "telegram-bot": ["restart"] }
@@ -60,7 +75,8 @@ app name. The panel never appears in `allow` and is always protected.
       touch to `allow`, keeping `stop` out unless you truly mean it.
 - [ ] Confirm the target's real state first (`pm2 describe <name>`, its logs,
       any in-process schedulers like hbl-pwa's `[backup-scheduler]`).
-- [ ] Set `actions_enabled: true`. Do the work. Set it back to `false`.
+- [ ] Set `actions_enabled: true` with the header toggle (type `ENABLE` to
+      confirm). Do the work. Toggle it back off — one click, no typing.
 - [ ] **Stop order: web → API → worker.** Never the reverse.
 - [ ] **Start order: worker → API → web**, one app at a time, ~30 s between
       each. Two cores handle a Next.js cold start badly if several start at once.

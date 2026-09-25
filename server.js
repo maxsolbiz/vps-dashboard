@@ -299,6 +299,50 @@ fastify.post('/api/auth/change-password', async (req, reply) => {
   return { ok: true, other_sessions_revoked: res.evicted };
 });
 
+// Master switch toggle. Turning OFF is always one call, no friction. Turning ON
+// requires typing ENABLE, so a stray click cannot arm start/stop on production
+// apps. This only ever writes policy.actions_enabled — allow/deny/logs_disabled
+// are never touched, so it cannot widen who is allowed to act.
+fastify.post('/api/policy/actions-enabled', async (req, reply) => {
+  if (!guardWrite(req, reply)) return;
+  const user = currentUser(req);
+  if (!user) { deny(reply, 401, 'login required'); return; }
+  const ip = ipOf(req);
+  const attempt = { userId: user.id, username: user.username, appId: 'policy', ip };
+  if (loginBlocked(ip)) {
+    store.audit({ ...attempt, action: 'policy-toggle', result: 'locked', error: 'rate limited' });
+    deny(reply, 429, 'too many attempts, try later');
+    return;
+  }
+  const { enabled, confirm_word: confirmWord } = req.body || {};
+  if (typeof enabled !== 'boolean') {
+    store.audit({ ...attempt, action: 'policy-toggle', result: 'failed', error: 'enabled must be boolean' });
+    deny(reply, 400, 'enabled must be a boolean');
+    return;
+  }
+  if (enabled) {
+    if (confirmWord !== 'ENABLE') {
+      // Deliberately does not echo what was expected beyond the public word.
+      const locked = loginFail(ip);
+      store.audit({ ...attempt, action: 'policy-toggle', result: locked ? 'locked' : 'denied', error: 'confirm word required to enable actions' });
+      deny(reply, locked ? 429 : 400, 'type ENABLE to confirm enabling actions');
+      return;
+    }
+  }
+  const res = policy.setActionsEnabled(enabled);
+  if (!res.ok) {
+    store.audit({ ...attempt, action: 'policy-toggle', result: 'failed', error: res.error });
+    deny(reply, 500, res.error);
+    return;
+  }
+  loginOk(ip);
+  // The saved scan advertised the old state; drop it so the next scan is fresh
+  // and the buttons reflect the new switch immediately.
+  scanlib.clearScanState();
+  store.audit({ ...attempt, action: 'policy-toggle', result: 'ok', error: `actions_enabled=${enabled}` });
+  return { ok: true, actions_enabled: res.actions_enabled };
+});
+
 // ---------- discovery ----------
 fastify.post('/api/scan', async (req, reply) => {
   if (!guardWrite(req, reply)) return;

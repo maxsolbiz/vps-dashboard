@@ -41,6 +41,9 @@ async function refreshMe() {
   $('app-view').classList.toggle('hidden', !me.user);
   $('logout-btn').classList.toggle('hidden', !me.user);
   $('changepw-btn').classList.toggle('hidden', !me.user);
+  $('actions-toggle-wrap').classList.toggle('hidden', !me.user);
+  $('actions-toggle').checked = me.actions_enabled === true;
+  $('actions-toggle-label').textContent = me.actions_enabled ? 'actions ENABLED' : 'actions disabled';
   $('session').textContent = me.user ? `${me.user.username} · actions ${me.actions_enabled ? 'ENABLED' : 'disabled'}` : '';
   if (me.user) { await refreshScan(true); await refreshAll(); }
 }
@@ -241,14 +244,21 @@ function closeModal(value) {
   $('modal-pw-new').value = '';
   $('modal-pw-confirm').value = '';
   $('modal-pw-error').textContent = '';
+  $('modal-confirm-word').value = '';
+  $('modal-confirm-word-error').textContent = '';
   if (modalResolve) modalResolve(value);
+}
+function hideModalExtras() {
+  $('modal-pw-wrap').classList.add('hidden');
+  $('modal-confirm-word-wrap').classList.add('hidden');
+  $('modal-confirm-word-error').textContent = '';
 }
 function confirmModal(title, text, needName) {
   modalMode = 'confirm';
   $('modal-title').textContent = title;
   $('modal-text').textContent = text;
   $('modal-confirm-name-wrap').classList.toggle('hidden', !needName);
-  $('modal-pw-wrap').classList.add('hidden');
+  hideModalExtras();
   $('modal-confirm-name').value = '';
   $('modal').classList.remove('hidden');
   return new Promise((resolve) => { modalResolve = resolve; });
@@ -260,6 +270,7 @@ function passwordModal() {
   $('modal-title').textContent = 'Change panel login password';
   $('modal-text').textContent = 'This changes the password for THIS panel login only. The Apache Basic Auth password is separate and is never changed here.';
   $('modal-confirm-name-wrap').classList.add('hidden');
+  hideModalExtras();
   $('modal-pw-wrap').classList.remove('hidden');
   $('modal-pw-current').value = '';
   $('modal-pw-new').value = '';
@@ -267,6 +278,19 @@ function passwordModal() {
   $('modal-pw-error').textContent = '';
   $('modal').classList.remove('hidden');
   $('modal-pw-current').focus();
+  return new Promise((resolve) => { modalResolve = resolve; });
+}
+// Arming confirmation for the master switch. Off is deliberately frictionless.
+function confirmEnableModal() {
+  modalMode = 'enable';
+  $('modal-title').textContent = 'Enable starting/stopping apps?';
+  $('modal-text').textContent = 'This allows starting, stopping and restarting any app listed in the allow list — including production and banking apps. Type ENABLE to arm it. You can switch it off again with one click, no typing.';
+  $('modal-confirm-name-wrap').classList.add('hidden');
+  hideModalExtras();
+  $('modal-confirm-word-wrap').classList.remove('hidden');
+  $('modal-confirm-word').value = '';
+  $('modal').classList.remove('hidden');
+  $('modal-confirm-word').focus();
   return new Promise((resolve) => { modalResolve = resolve; });
 }
 // Browser-only bootstrap: event wiring + first load. Guarded so test/ui.test.js
@@ -280,6 +304,12 @@ $('modal-ok').addEventListener('click', () => {
     if (next !== conf) { $('modal-pw-error').textContent = 'new passwords do not match'; return; }
     if (next.length < 12) { $('modal-pw-error').textContent = 'new password must be at least 12 characters'; return; }
     closeModal({ mode: 'password', current_password: cur, new_password: next });
+    return;
+  }
+  if (modalMode === 'enable') {
+    const word = $('modal-confirm-word').value;
+    if (word !== 'ENABLE') { $('modal-confirm-word-error').textContent = 'must be exactly ENABLE'; return; }
+    closeModal({ mode: 'enable', enabled: true });
     return;
   }
   closeModal($('modal-confirm-name').value);
@@ -365,6 +395,33 @@ $('changepw-btn').addEventListener('click', async () => {
   } catch (e) {
     toast(`Password change failed: ${e.message}`, 'err');
   }
+});
+
+// Master switch. OFF is one click; ON requires typing ENABLE. After a
+// successful toggle we rescan immediately, because the saved scan advertised
+// the previous switch state and would otherwise leave the buttons stale.
+async function setActionsEnabled(enabled, confirmWord) {
+  try {
+    const r = await api('/api/policy/actions-enabled', {
+      method: 'POST',
+      body: JSON.stringify({ enabled, confirm_word: confirmWord })
+    });
+    await refreshMe();
+    await doScan();
+    toast(enabled ? 'Actions ENABLED — buttons are live.' : 'Actions disabled — buttons are greyed out.');
+    return r;
+  } catch (e) {
+    await refreshMe();
+    toast(`Toggle failed: ${e.message}`, 'err');
+    return null;
+  }
+}
+$('actions-toggle').addEventListener('change', async (e) => {
+  const wantOn = e.target.checked;
+  if (!wantOn) { await setActionsEnabled(false); return; }
+  const out = await confirmEnableModal();
+  if (!out || out.mode !== 'enable') { await refreshMe(); return; }
+  await setActionsEnabled(true, 'ENABLE');
 });
 $('logout-btn').addEventListener('click', async () => {
   await api('/api/auth/logout', { method: 'POST', body: '{}' });
