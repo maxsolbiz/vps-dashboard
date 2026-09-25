@@ -671,6 +671,46 @@ pre {
 }
 .nav-backdrop.hidden { display: none; }
 
+/* system detail KPI grid */
+.sys-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--sp-4);
+}
+.sys-cell { min-width: 0; }
+.sys-label {
+  font-size: var(--fs-xs); font-weight: 600; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--text-dim); margin-bottom: var(--sp-3);
+  display: flex; align-items: center; gap: var(--sp-2);
+}
+.sys-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2) var(--sp-3); }
+.sys-kpis > div { display: flex; flex-direction: column; min-width: 0; }
+.sys-kpis .k {
+  font-family: var(--mono); font-size: var(--fs-md); font-weight: 600;
+  color: var(--text); line-height: 1.2;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sys-kpis .k.warn { color: var(--warning); }
+.sys-kpis .k.crit { color: var(--critical); }
+.sys-kpis .v { font-size: var(--fs-xs); color: var(--text-dim); }
+
+.core-bars { display: flex; flex-direction: column; gap: var(--sp-2); }
+.core-row { display: flex; align-items: center; gap: var(--sp-2); }
+.core-name { font-family: var(--mono); font-size: var(--fs-xs); color: var(--text-muted); width: 42px; flex: 0 0 42px; }
+.core-track { flex: 1; height: 8px; background: var(--bg-sunken); border-radius: var(--r-full); overflow: hidden; }
+.core-fill { display: block; height: 100%; background: var(--primary); border-radius: var(--r-full); transition: width var(--dur) ease; }
+.core-fill.hot { background: var(--warning); }
+.core-fill.max { background: var(--critical); }
+.core-val { font-family: var(--mono); font-size: var(--fs-xs); color: var(--text-muted); width: 44px; text-align: right; flex: 0 0 44px; }
+
+.net-rows { display: flex; flex-direction: column; gap: var(--sp-2); }
+.net-row { display: flex; align-items: center; gap: var(--sp-2); }
+.net-dir { font-size: var(--fs-xs); color: var(--text-dim); width: 24px; flex: 0 0 24px; text-transform: uppercase; }
+.net-bar { flex: 1; height: 8px; background: var(--bg-sunken); border-radius: var(--r-full); overflow: hidden; }
+.net-bar > i { display: block; height: 100%; border-radius: var(--r-full); transition: width var(--dur) ease; }
+.net-in { background: var(--info); }
+.net-out { background: var(--success); }
+.net-val { font-family: var(--mono); font-size: var(--fs-xs); color: var(--text-muted); width: 74px; text-align: right; flex: 0 0 74px; }
+
 /* ---------- 18. responsive ---------- */
 @media (max-width: 1024px) {
   .app { grid-template-columns: var(--sidebar-w-collapsed) 1fr; }

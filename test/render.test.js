@@ -98,8 +98,27 @@ const OVERVIEW = {
     { name: 'staging-web', status: 'stopped', pid: 0, pids: [], cpu_pct: 0, rss_b: 0, uptime_s: 0, category: 'test' }
   ]
 };
-const AUDIT = {
-  entries: [
+// Server-side metric history, as GET /api/metrics returns it.
+const METRICS = {
+  at: new Date().toISOString(), cap: 720, size: 3,
+  latest: {
+    t: new Date().toISOString(), cpu: 12.5, mem: 44, load: 0.4, disk: 82,
+    cores: [{ id: 'cpu0', pct: 11 }, { id: 'cpu1', pct: 14 }],
+    rxBps: 2048, txBps: 1048576,
+    conns: 97, connEst: 58, connTw: 7, connListen: 18,
+    procs: 341, running: 2, procsCreated: 3746540, ctxtRate: 4200,
+    majFault: 392629, oomKill: 0
+  },
+  cpu: { min: 4, max: 40, cur: 12.5, n: 3, avg: 18.8 },
+  mem: { min: 40, max: 50, cur: 44, n: 3, avg: 44.7 },
+  load: { min: 0.2, max: 0.9, cur: 0.4, n: 3, avg: 0.5 },
+  series: [
+    { t: '2026-01-01T00:00:00Z', cpu: 4, mem: 40, load: 0.2, disk: 82 },
+    { t: '2026-01-01T00:00:05Z', cpu: 40, mem: 50, load: 0.9, disk: 82 },
+    { t: '2026-01-01T00:00:10Z', cpu: 12.5, mem: 44, load: 0.4, disk: 82 }
+  ]
+};
+const AUDIT = {  entries: [
     { t: new Date().toISOString(), user: 'admin', app: 'web-pwa', action: 'restart', result: 'ok', error: null, ip: '92.97.188.58' },
     { t: new Date().toISOString(), user: 'admin', app: 'policy', action: 'policy-toggle', result: 'ok', error: 'actions_enabled=false', ip: '92.97.188.58' }
   ]
@@ -111,6 +130,7 @@ global.fetch = async (url) => {
   if (u.startsWith('/api/me')) return json({ user: { username: 'admin', role: 'admin' }, csrf: 't', actions_enabled: true });
   if (u.startsWith('/api/scan')) return json(SCAN);
   if (u.startsWith('/api/overview')) return json(OVERVIEW);
+  if (u.startsWith('/api/metrics')) return json(METRICS);
   if (u.startsWith('/api/audit')) return json(AUDIT);
   if (u.includes('/logs')) return json({ text: 'log line one\nlog line two' });
   return json({});
@@ -388,6 +408,42 @@ test('hotspot lists are ranked with proportional bars and an empty state', () =>
   const empty = { ...SCAN, items: [] };
   mod.renderScan(empty);
   assert.match(el('top-cpu').innerHTML, /No running applications/, 'honest empty state');
+});
+
+test('server-side history drives the charts and survives a reload', () => {
+  const mod = require(path.join(root, 'public', 'app.js'));
+  mod._resetTrend();
+  assert.doesNotThrow(() => mod.renderSeries(METRICS), 'renderSeries');
+  // min/max/avg come from the buffer, not invented from the last point
+  assert.match(el('val-cpu').textContent, /min 4\.0%/, 'min from server history');
+  assert.match(el('val-cpu').textContent, /max 40\.0%/, 'max from server history');
+  assert.match(el('val-cpu').textContent, /avg 18\.8%/, 'a real mean is reported');
+  assert.match(el('val-mem').textContent, /avg 44\.7%/, 'memory average too');
+  assert.match(el('trend-note').textContent, /survives reload/, 'graph source is stated');
+  // a chart path is drawn from the 3-row series
+  assert.match(el('chart-cpu').innerHTML, /class="line/, 'line drawn from server series');
+  assert.doesNotThrow(() => mod.renderSeries({ series: [] }), 'empty series is safe');
+  assert.doesNotThrow(() => mod.renderSeries(null), 'null metrics is safe');
+});
+
+test('system detail renders per-core CPU, network, connections and pressure', () => {
+  const mod = require(path.join(root, 'public', 'app.js'));
+  assert.doesNotThrow(() => mod.renderSystem(METRICS), 'renderSystem');
+  const cores = el('core-bars').innerHTML;
+  assert.match(cores, /cpu0/, 'cpu0 bar');
+  assert.match(cores, /cpu1/, 'cpu1 bar');
+  assert.match(cores, /data-width="w\d+"/, 'bars use CSP-safe width classes');
+  assert.equal(el('net-rx').textContent, '2.0 KB/s', 'receive rate formatted');
+  assert.equal(el('net-tx').textContent, '1.0 MB/s', 'transmit rate formatted');
+  assert.equal(el('conn-total').textContent, '97');
+  assert.equal(el('conn-est').textContent, '58');
+  assert.equal(el('proc-total').textContent, '341');
+  assert.equal(el('oom-kill').textContent, '0', 'zero OOM kills is not hidden');
+  assert.equal(el('oom-kill').className, 'k', 'no crit styling when there are none');
+  assert.doesNotThrow(() => mod.renderSystem({ latest: { oomKill: 2 } }), 'a raised OOM count is survivable');
+  assert.equal(el('oom-kill').className, 'k crit', 'a real OOM kill is highlighted');
+  assert.doesNotThrow(() => mod.renderSystem({}), 'no latest is safe');
+  assert.doesNotThrow(() => mod.renderSystem(null), 'null is safe');
 });
 
 test('long names and empty collections degrade gracefully', () => {
