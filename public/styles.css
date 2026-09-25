@@ -170,6 +170,9 @@ button.sm { font-size: var(--fs-sm); padding: var(--sp-1) var(--sp-2); min-heigh
   cursor: pointer;
   user-select: none;
   background: var(--surface);
+  flex: 0 0 auto;          /* never shrink below the label, never grow */
+  max-width: 100%;
+  white-space: nowrap;
 }
 #actions-toggle-wrap:has(#actions-toggle:checked) {
   border-color: var(--warning); background: var(--warning-soft);
@@ -238,11 +241,12 @@ label { font-size: var(--fs-sm); color: var(--text-muted); }
   background: var(--bg-raised);
   border-bottom: 1px solid var(--border);
   min-width: 0;
+  overflow: hidden; /* the switch must never push the page sideways */
 }
-.topbar-left { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+.topbar-left { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; overflow: hidden; }
 .topbar-right {
   display: flex; align-items: center; gap: var(--sp-2);
-  margin-left: auto; flex-wrap: nowrap;
+  margin-left: auto; flex-wrap: nowrap; flex: 0 0 auto;
 }
 .nav-toggle { display: none; }
 #session {
@@ -623,6 +627,13 @@ pre {
   color: var(--text-muted); margin-top: var(--sp-1);
 }
 
+/* backdrop for the off-canvas drawer */
+.nav-backdrop {
+  position: fixed; inset: 0; z-index: 40;
+  background: rgba(0, 0, 0, .55);
+}
+.nav-backdrop.hidden { display: none; }
+
 /* ---------- 18. responsive ---------- */
 @media (max-width: 1024px) {
   .app { grid-template-columns: var(--sidebar-w-collapsed) 1fr; }
@@ -635,16 +646,33 @@ pre {
 }
 
 @media (max-width: 860px) {
-  .app { grid-template-columns: 1fr; grid-template-areas: "brand" "header" "nav" "main"; }
+  /* Below 860 the sidebar becomes a real off-canvas drawer. It used to be a
+     horizontal strip, which made the hamburger toggle do nothing visible. */
+  .app { grid-template-columns: 1fr; grid-template-areas: "brand" "header" "main"; }
   .nav {
-    flex-direction: row; overflow-x: auto; padding: var(--sp-2);
-    border-right: 0; border-bottom: 1px solid var(--border);
-    position: sticky; top: 0; z-index: 20;
+    position: fixed; z-index: 45; inset: 0 auto 0 0;
+    width: min(78vw, 280px);
+    flex-direction: column; gap: 2px;
+    padding: var(--sp-4) var(--sp-2);
+    overflow-y: auto; overflow-x: hidden;
+    border-right: 1px solid var(--border-strong);
+    background: var(--bg-raised);
+    box-shadow: var(--shadow-lg);
+    transform: translateX(-100%);
+    transition: transform var(--dur) ease;
+    visibility: hidden;
   }
-  .nav-item { flex: 0 0 auto; width: auto; }
-  .app .nav-item .lbl { display: inline; }
-  .topbar { padding: 0 var(--sp-3); }
+  body.nav-open .nav { transform: translateX(0); visibility: visible; }
+  .nav-item { flex: 0 0 auto; width: 100%; justify-content: flex-start; }
+  .app .nav-item .lbl,
+  .app .nav-item .count { display: inline; }
+  .app .nav-item .count { display: inline-block; }
+  .topbar { padding: 0 var(--sp-3); gap: var(--sp-2); }
+  .topbar-right { gap: var(--sp-1); min-width: 0; }
   .main { padding: var(--sp-3); }
+  /* The brand block would eat the header width on a phone. */
+  .brand { padding: 0 var(--sp-3); }
+  .brand-text { display: inline-flex; flex-direction: column; }
 }
 
 @media (max-width: 640px) {
@@ -656,8 +684,18 @@ pre {
   .metric-value { font-size: var(--fs-lg); }
   #changepw-btn { display: none; }
   .server-pill .sep, .server-pill .extra { display: none; }
+  .server-pill { padding: var(--sp-1) var(--sp-2); }
   .modal-body { padding: var(--sp-4); }
   #toasts { left: var(--sp-3); right: var(--sp-3); max-width: none; }
+  /* Keep the switch meaningful but small: "ON"/"OFF" instead of the long form. */
+  #actions-toggle-wrap { padding: var(--sp-1) var(--sp-2); gap: var(--sp-1); }
+  #actions-toggle-label { font-size: var(--fs-xs); }
+}
+
+@media (max-width: 380px) {
+  .brand-text { display: none; }
+  .server-pill .name { display: none; }
+  .topbar { gap: var(--sp-1); }
 }
 
 /* touch targets on coarse pointers */

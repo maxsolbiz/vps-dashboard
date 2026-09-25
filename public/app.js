@@ -43,7 +43,7 @@ async function refreshMe() {
   $('changepw-btn').classList.toggle('hidden', !me.user);
   $('actions-toggle-wrap').classList.toggle('hidden', !me.user);
   $('actions-toggle').checked = me.actions_enabled === true;
-  $('actions-toggle-label').textContent = me.actions_enabled ? 'actions ENABLED' : 'actions disabled';
+  $('actions-toggle-label').textContent = switchLabel(me.actions_enabled === true);
   $('session').textContent = me.user ? `${me.user.username} · actions ${me.actions_enabled ? 'ENABLED' : 'disabled'}` : '';
   if (me.user) { await refreshScan(true); await refreshAll(); }
 }
@@ -260,6 +260,42 @@ function applyTheme(t) {
   document.documentElement.setAttribute('data-theme', t);
   try { localStorage.setItem('panel-theme', t); } catch (_) { /* private mode */ }
 }
+
+// ---------- responsive helpers ----------
+const MOBILE_NAV = '(max-width: 860px)';
+function isMobileNav() {
+  return typeof window.matchMedia === 'function'
+    ? window.matchMedia(MOBILE_NAV).matches
+    : window.innerWidth <= 860;
+}
+// The switch must stay readable on a phone without overflowing the header, so
+// the long form is used on desktop and a short, still-unambiguous one on mobile.
+function switchLabel(on) {
+  if (isMobileNav()) return on ? 'ON' : 'off';
+  return on ? 'actions ENABLED' : 'actions disabled';
+}
+
+// ---------- off-canvas drawer (mobile) ----------
+let navOpen = false;
+function setNav(open) {
+  navOpen = !!open;
+  document.body.classList.toggle('nav-open', navOpen);
+  const back = $('nav-backdrop');
+  if (back) {
+    back.classList.toggle('hidden', !navOpen);
+    back.setAttribute('aria-hidden', String(!navOpen));
+  }
+  const btn = $('nav-toggle');
+  if (btn) {
+    btn.setAttribute('aria-expanded', String(navOpen));
+    btn.setAttribute('aria-label', navOpen ? 'Close navigation menu' : 'Open navigation menu');
+  }
+  if (navOpen) {
+    const first = document.querySelector('#nav .nav-item');
+    if (first && first.focus) first.focus();
+  }
+}
+function closeNav() { if (navOpen) setNav(false); }
 
 // ---------- formatting ----------
 function fmtBytes(b) {
@@ -798,25 +834,39 @@ $('theme-btn').addEventListener('click', () => {
   applyTheme(next);
 });
 $('nav-toggle').addEventListener('click', () => {
+  // Below 860 the nav is an off-canvas drawer; above it, a collapsible sidebar.
+  if (isMobileNav()) { setNav(!navOpen); return; }
   const app = $('app-view');
   const collapsed = app.classList.toggle('nav-collapsed');
   $('nav-toggle').setAttribute('aria-expanded', String(!collapsed));
   try { localStorage.setItem('panel-nav', collapsed ? 'collapsed' : 'open'); } catch (_) { /* ignore */ }
 });
+$('nav-backdrop').addEventListener('click', closeNav);
 $('proc-search').addEventListener('input', () => renderProcesses(state.overview));
 $('log-refresh').addEventListener('click', () => showLogs());
 document.querySelectorAll('.nav-item').forEach((b) => {
-  b.addEventListener('click', () => showView(b.dataset.view));
+  b.addEventListener('click', () => { showView(b.dataset.view); closeNav(); });
 });
-window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
+window.addEventListener('hashchange', () => { showView(location.hash.slice(1)); closeNav(); });
+// Leaving the mobile breakpoint must not strand an open drawer off-screen.
+if (typeof window.matchMedia === 'function') {
+  const mq = window.matchMedia(MOBILE_NAV);
+  const onChange = () => {
+    closeNav();
+    $('actions-toggle-label').textContent = switchLabel($('actions-toggle').checked);
+  };
+  if (mq.addEventListener) mq.addEventListener('change', onChange);
+  else if (mq.addListener) mq.addListener(onChange);
+}
 // Keyboard: 1-7 jump between views when not typing in a field.
 document.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const t = e.target;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
   if (!$('modal').classList.contains('hidden')) return;
+  if (e.key === 'Escape') { closeNav(); return; }
   const n = parseInt(e.key, 10);
-  if (n >= 1 && n <= VIEWS.length) showView(VIEWS[n - 1]);
+  if (n >= 1 && n <= VIEWS.length) { showView(VIEWS[n - 1]); closeNav(); }
 });
 $('logout-btn').addEventListener('click', async () => {
   await api('/api/auth/logout', { method: 'POST', body: '{}' });
@@ -841,6 +891,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     actionButtons, isLiveStatus, esc, renderScan, state,
     renderHealth, renderServerCard, renderProcesses, renderPorts,
-    renderAlerts, renderPolicyInfo, showView, VIEWS, pushTrend, drawChart, fmtBytes
+    renderAlerts, renderPolicyInfo, showView, VIEWS, pushTrend, drawChart, fmtBytes,
+    setNav, closeNav, switchLabel, isMobileNav
   };
 }

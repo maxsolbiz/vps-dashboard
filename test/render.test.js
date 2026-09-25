@@ -18,7 +18,10 @@ function el(id) {
   if (!cells.has(id)) {
     const node = {
       id, innerHTML: '', value: '', checked: false, disabled: false,
-      dataset: {}, style: {}, className: '',
+      dataset: {}, style: {}, className: '', _attrs: {},
+      setAttribute(k, v) { node._attrs[k] = String(v); },
+      getAttribute(k) { return k in node._attrs ? node._attrs[k] : null; },
+      removeAttribute(k) { delete node._attrs[k]; },
       classList: {
         _s: new Set(),
         add(...c) { c.forEach((x) => this._s.add(x)); },
@@ -50,6 +53,7 @@ global.document = {
   hidden: false,
   activeElement: null,
   documentElement: { getAttribute: () => 'dark', setAttribute() {} },
+  body: el('body'),
   getElementById: (id) => el(id),
   createElement: () => el(`new-${Math.random()}`),
   querySelector: (sel) => {
@@ -186,6 +190,48 @@ test('status is rendered with a glyph and a word, never colour alone', () => {
   assert.match(bankRow, /running/, 'text label present');
   const stopped = rows.split('</tr>').find((r) => r.includes('staging-web'));
   assert.match(stopped, /○/, 'stopped uses a distinct glyph, not just a dimmer colour');
+});
+
+test('the drawer opens, closes, and reports its state accessibly', () => {
+  const mod = require(path.join(root, 'public', 'app.js'));
+  const btn = el('nav-toggle');
+  const back = el('nav-backdrop');
+  // mobile drawer on, desktop sidebar off
+  global.window.innerWidth = 390;
+  global.window.matchMedia = (q) => ({ matches: /860px/.test(q), media: q, addEventListener() {}, addListener() {} });
+
+  mod.setNav(true);
+  assert.ok(global.document.body.classList.contains('nav-open'), 'body gets nav-open');
+  assert.equal(back.classList.contains('hidden'), false, 'backdrop shown');
+  assert.equal(back.getAttribute('aria-hidden'), 'false', 'backdrop exposed to AT');
+  assert.equal(btn.getAttribute('aria-expanded'), 'true', 'button reports expanded');
+  assert.match(btn.getAttribute('aria-label'), /Close/i, 'label flips to Close');
+
+  mod.setNav(false);
+  assert.equal(global.document.body.classList.contains('nav-open'), false, 'body class cleared');
+  assert.equal(back.classList.contains('hidden'), true, 'backdrop hidden again');
+  assert.equal(btn.getAttribute('aria-expanded'), 'false', 'button reports collapsed');
+  assert.match(btn.getAttribute('aria-label'), /Open/i, 'label flips back to Open');
+});
+
+test('setNav is idempotent and closeNav only acts when open', () => {
+  const mod = require(path.join(root, 'public', 'app.js'));
+  global.window.matchMedia = (q) => ({ matches: /860px/.test(q), media: q, addEventListener() {}, addListener() {} });
+  mod.setNav(false);
+  assert.doesNotThrow(() => mod.closeNav(), 'closeNav when already closed is safe');
+  mod.setNav(true);
+  assert.doesNotThrow(() => mod.closeNav(), 'closeNav when open works');
+  assert.equal(global.document.body.classList.contains('nav-open'), false);
+});
+
+test('the switch label adapts to the viewport without losing meaning', () => {
+  const m = require(path.join(root, 'public', 'app.js'));
+  global.window.matchMedia = (q) => ({ matches: /860px/.test(q), media: q, addEventListener() {}, addListener() {} });
+  assert.equal(m.switchLabel(true), 'ON', 'mobile: enabled reads ON');
+  assert.equal(m.switchLabel(false), 'off', 'mobile: disabled reads off');
+  global.window.matchMedia = () => ({ matches: false, media: '', addEventListener() {}, addListener() {} });
+  assert.equal(m.switchLabel(true), 'actions ENABLED', 'desktop: full enabled label');
+  assert.equal(m.switchLabel(false), 'actions disabled', 'desktop: full disabled label');
 });
 
 test('long names and empty collections degrade gracefully', () => {

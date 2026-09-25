@@ -132,6 +132,41 @@ test('no CSP violations introduced (no inline style/script/handlers, no data: UR
   assert.doesNotMatch(css, /url\(\s*['"]?https?:/i, 'no remote asset urls');
 });
 
+test('mobile navigation is a real off-canvas drawer, not a dead toggle', () => {
+  // Regression: below 860 the nav was a horizontal strip, so the hamburger
+  // toggled nav-collapsed and changed nothing visible.
+  assert.match(html, /id="nav-backdrop"/, 'a backdrop exists');
+  assert.match(html, /id="nav-toggle"[^>]*aria-controls="nav"/, 'the button controls the nav');
+  assert.match(html, /id="nav-toggle"[^>]*aria-expanded="false"/, 'aria-expanded starts false');
+  const m = /@media\s*\(max-width:\s*860px\)\s*\{([\s\S]*?)\n\}/.exec(css);
+  assert.ok(m, '860px breakpoint exists');
+  const block = m[1];
+  assert.match(block, /\.nav\s*\{[\s\S]*?position:\s*fixed/, 'nav becomes fixed on mobile');
+  assert.match(block, /\.nav\s*\{[\s\S]*?transform:\s*translateX\(-100%\)/, 'nav starts off-canvas');
+  assert.match(block, /body\.nav-open \.nav\s*\{[\s\S]*?translateX\(0\)/, 'nav-open slides it in');
+  assert.match(block, /visibility:\s*hidden/, 'closed drawer is hidden from AT and tab order');
+  assert.match(css, /\.nav-backdrop\s*\{[\s\S]*?position:\s*fixed/, 'backdrop is positioned');
+  assert.match(js, /function setNav/, 'setNav exists');
+  assert.match(js, /classList\.toggle\('nav-open'/, 'setNav toggles the body class');
+  assert.match(js, /\$\('nav-backdrop'\)\.addEventListener\('click', closeNav\)/, 'backdrop closes the drawer');
+  assert.match(js, /b\.addEventListener\('click', \(\) => \{ showView\(b\.dataset\.view\); closeNav\(\); \}\)/, 'choosing a view closes the drawer');
+  assert.match(js, /if \(e\.key === 'Escape'\) \{ closeNav\(\); return; \}/, 'Escape closes the drawer');
+  assert.match(js, /mq\.addEventListener\('change'/, 'leaving the breakpoint closes the drawer');
+});
+
+test('the actions switch cannot overflow the header on a phone', () => {
+  assert.match(css, /\.topbar\s*\{[^}]*overflow:\s*hidden/, 'topbar clips rather than pushing the page wide');
+  assert.match(css, /\.topbar-right\s*\{[^}]*flex:\s*0 0 auto/, 'the right cluster does not grow');
+  assert.match(css, /#actions-toggle-wrap\s*\{[^}]*flex:\s*0 0 auto/, 'the switch keeps its intrinsic width');
+  assert.match(css, /#actions-toggle-wrap\s*\{[^}]*white-space:\s*nowrap/, 'the label never wraps mid-word');
+  assert.match(css, /@media\s*\(max-width:\s*640px\)\s*\{[\s\S]*?#actions-toggle-wrap/, 'the switch is tightened on small screens');
+  // The label must stay meaningful rather than being hidden away.
+  assert.match(js, /function switchLabel/, 'switchLabel exists');
+  assert.match(js, /return on \? 'ON' : 'off'/, 'short but unambiguous mobile label');
+  assert.match(js, /return on \? 'actions ENABLED' : 'actions disabled'/, 'full desktop label retained');
+  assert.match(js, /mq\.addEventListener\('change', onChange\)/, 'label updates when the viewport changes');
+});
+
 test('design tokens exist for the documented scales', () => {
   for (const t of ['--sp-1', '--sp-2', '--sp-3', '--sp-4', '--sp-5', '--sp-6', '--sp-8', '--sp-10']) {
     assert.match(css, new RegExp(`${t}:`), `${t} spacing token defined`);

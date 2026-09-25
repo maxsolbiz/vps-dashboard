@@ -36,7 +36,7 @@
   </div>
 
   <header class="topbar">
-    <button id="nav-toggle" class="icon ghost nav-toggle" aria-label="Toggle navigation" aria-expanded="true">☰</button>
+    <button id="nav-toggle" class="icon ghost nav-toggle" aria-label="Open navigation menu" aria-expanded="false" aria-controls="nav">☰</button>
     <div class="topbar-left">
       <div class="server-pill" id="server-pill">
         <span class="status running" id="server-status"><span class="glyph" aria-hidden="true">●</span><span>online</span></span>
@@ -58,8 +58,7 @@
     </div>
   </header>
 
-  <nav class="nav" id="nav" aria-label="Sections">
-    <button class="nav-item on" data-view="dashboard" aria-current="page"><span class="ico" aria-hidden="true">◈</span><span class="lbl">Dashboard</span></button>
+  <nav class="nav" id="nav" aria-label="Sections">    <button class="nav-item on" data-view="dashboard" aria-current="page"><span class="ico" aria-hidden="true">◈</span><span class="lbl">Dashboard</span></button>
     <button class="nav-item" data-view="applications"><span class="ico" aria-hidden="true">▤</span><span class="lbl">Applications</span><span class="count" id="nav-count-apps">0</span></button>
     <button class="nav-item" data-view="processes"><span class="ico" aria-hidden="true">⚙</span><span class="lbl">Processes</span><span class="count" id="nav-count-procs">0</span></button>
     <button class="nav-item" data-view="ports"><span class="ico" aria-hidden="true">⇄</span><span class="lbl">Ports</span><span class="count" id="nav-count-ports">0</span></button>
@@ -293,6 +292,8 @@
     <button id="modal-cancel" class="ghost">Cancel</button>
   </div>
 </div>
+
+<div id="nav-backdrop" class="nav-backdrop hidden" aria-hidden="true"></div>
 
 <div id="toasts" aria-live="polite" aria-atomic="false"></div>
 <script src="/app.js"></script>
