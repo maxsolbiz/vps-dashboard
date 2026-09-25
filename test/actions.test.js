@@ -193,6 +193,37 @@ test('indirect app: stop reports port_released + waited_ms, start blocked while 
   assert.equal(stop.body.status, 'stopped');
 });
 
+test('isIndirect: classifies shell-script and package-manager exec paths as wrapper', async () => {
+  const fs = require('fs');
+  const path = require('path');
+  const stateFile = path.join(process.env.PANEL_FAKE_STATE, 'pm2-state.json');
+  const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+  const origExec = state.apps['web-pwa'].exec;
+  // Regression: /root/event-invoice/start-frontend.sh was reported indirect:false
+  // because the old basename strip only removed .js/.cmd/.exe, never .sh.
+  const cases = [
+    ['/root/event-invoice/start-frontend.sh', true],
+    ['/root/event-invoice/start.sh', true],
+    ['/usr/bin/npm', true],
+    ['/usr/bin/local/bin/pnpm', true],
+    ['/bin/sh', true],
+    ['/usr/bin/node', false],
+    ['/root/app/dist/server.js', false],
+  ];
+  try {
+    for (const [execPath, expected] of cases) {
+      state.apps['web-pwa'].exec = execPath;
+      fs.writeFileSync(stateFile, JSON.stringify(state));
+      const sc = await fetch(`${srv.base}/api/scan`, { method: 'POST', headers: authed(sess), body: '{}' }).then((r) => r.json());
+      const item = sc.items.find((i) => i.id === 'web-pwa');
+      assert.equal(item.indirect, expected, `${execPath} -> indirect:${expected}`);
+    }
+  } finally {
+    state.apps['web-pwa'].exec = origExec;
+    fs.writeFileSync(stateFile, JSON.stringify(state));
+  }
+});
+
 test('start guard: blocked while an orphan holds the port, allowed once clear', async () => {
   const fs = require('fs');
   const path = require('path');
