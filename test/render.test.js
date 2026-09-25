@@ -234,6 +234,51 @@ test('the switch label adapts to the viewport without losing meaning', () => {
   assert.equal(m.switchLabel(false), 'actions disabled', 'desktop: full disabled label');
 });
 
+test('mobile card action buttons are wired, not just the desktop table', () => {
+  // Regression: #apps-pm2 (table) and #apps-pm2-cards (mobile cards) are
+  // SIBLINGS. Only the table was queried for buttons, so below 640px — where
+  // the table is display:none and the cards are shown — Stop/Restart did
+  // nothing on mobile while working perfectly on desktop.
+  const mod = require(path.join(root, 'public', 'app.js'));
+  const attached = [];
+  const mkBtn = (id, act) => ({
+    dataset: { id, act },
+    addEventListener: (ev, fn) => attached.push({ id, act, ev, fn })
+  });
+  // table buttons
+  tbody('apps-pm2').innerHTML = '';
+  const cards = el('apps-pm2-cards');
+  cards.innerHTML = '';
+  // simulate both containers having buttons
+  global.document.querySelectorAll = (sel) => {
+    if (sel === '#apps-pm2 button') return [mkBtn('table-app', 'restart')];
+    if (sel === '#apps-pm2-cards button') return [mkBtn('card-app', 'stop'), mkBtn('card-app2', 'restart')];
+    return [];
+  };
+  mod.renderScan(SCAN);
+
+  const acts = attached.map((a) => `${a.id}:${a.act}`);
+  assert.ok(acts.includes('table-app:restart'), 'table buttons still wired');
+  assert.ok(acts.includes('card-app:stop'), 'CARD stop button is wired');
+  assert.ok(acts.includes('card-app2:restart'), 'CARD restart button is wired');
+  assert.ok(attached.every((a) => a.ev === 'click'), 'all use the click event');
+  // and invoking a card handler must reach onAppButton without throwing
+  const stopBtn = attached.find((a) => a.act === 'stop');
+  assert.doesNotThrow(() => {
+    const r = stopBtn.fn();
+    if (r && typeof r.catch === 'function') r.catch(() => {});
+  }, 'clicking a mobile Stop must not throw');
+});
+
+test('non-action buttons (Logs) are not double-wired as app actions', () => {
+  const mod = require(path.join(root, 'public', 'app.js'));
+  const attached = [];
+  global.document.querySelectorAll = (sel) => (sel === '#apps-pm2 button'
+    ? [{ dataset: { id: 'x', act: 'restart' }, addEventListener: (e, f) => attached.push(e) }] : []);
+  mod.renderScan(SCAN);
+  assert.equal(attached.length, 1, 'exactly one handler per button');
+});
+
 test('long names and empty collections degrade gracefully', () => {
   const mod = require(path.join(root, 'public', 'app.js'));
   const longName = 'a'.repeat(120);

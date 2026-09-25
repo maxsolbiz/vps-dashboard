@@ -106,6 +106,10 @@ function actionButtons(a, pend) {
   return btns.join(' ');
 }
 
+// Containers that render action buttons. The pm2 table and its mobile card
+// list are separate elements; both need click handlers.
+const ACTION_BUTTON_ROOTS = ['#apps-pm2', '#apps-pm2-cards'];
+
 function renderScan(r) {
   $('scan-meta').textContent = r.scanned_at ? `last scan: ${r.scanned_at}${r.cached ? ' (cached)' : ''}${r.complete === false ? ' · INCOMPLETE' : ''}` : '';
   const diff = state.diff;
@@ -185,8 +189,17 @@ function renderScan(r) {
   document.querySelector('#apps-infra tbody').innerHTML = infrarows.map((a) =>
     `<tr><td><b>${esc(a.name)}</b></td><td><span class="dot ${esc(a.status)}">●</span> ${esc(a.status)}</td>
      <td>${esc(a.notes || '')}</td></tr>`).join('');
-  document.querySelectorAll('#apps-pm2 button').forEach((b) =>
-    b.addEventListener('click', () => onAppButton(b.dataset.id, b.dataset.act)));
+  // The desktop table and the mobile cards are SIBLING containers, and below
+  // 640px only the cards are visible. Both must be wired or the mobile action
+  // buttons are inert.
+  // The desktop table and the mobile cards are SIBLING containers, and below
+  // 640px only the cards are visible. Both must be wired or the mobile action
+  // buttons are inert.
+  ACTION_BUTTON_ROOTS.forEach((root) => {
+    document.querySelectorAll(`${root} button`).forEach((b) => {
+      if (b.dataset.act) b.addEventListener('click', () => onAppButton(b.dataset.id, b.dataset.act));
+    });
+  });
 
   const all = pm2rows.filter((a) => a.kind === 'pm2' && a.rss_b);
   $('top-cpu').innerHTML = [...all].sort((x, y) => y.cpu_pct - x.cpu_pct).slice(0, 5)
