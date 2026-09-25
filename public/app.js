@@ -40,6 +40,7 @@ async function refreshMe() {
   $('login-view').classList.toggle('hidden', !!me.user);
   $('app-view').classList.toggle('hidden', !me.user);
   $('logout-btn').classList.toggle('hidden', !me.user);
+  $('changepw-btn').classList.toggle('hidden', !me.user);
   $('session').textContent = me.user ? `${me.user.username} · actions ${me.actions_enabled ? 'ENABLED' : 'disabled'}` : '';
   if (me.user) { await refreshScan(true); await refreshAll(); }
 }
@@ -233,19 +234,57 @@ async function refreshAll() {
 }
 
 let modalResolve = null;
+let modalMode = 'confirm';
+function closeModal(value) {
+  $('modal').classList.add('hidden');
+  $('modal-pw-current').value = '';
+  $('modal-pw-new').value = '';
+  $('modal-pw-confirm').value = '';
+  $('modal-pw-error').textContent = '';
+  if (modalResolve) modalResolve(value);
+}
 function confirmModal(title, text, needName) {
+  modalMode = 'confirm';
   $('modal-title').textContent = title;
   $('modal-text').textContent = text;
   $('modal-confirm-name-wrap').classList.toggle('hidden', !needName);
+  $('modal-pw-wrap').classList.add('hidden');
   $('modal-confirm-name').value = '';
   $('modal').classList.remove('hidden');
+  return new Promise((resolve) => { modalResolve = resolve; });
+}
+// Password-change dialog. The confirm field is client-side only; the new
+// password itself is never logged or echoed back by the server.
+function passwordModal() {
+  modalMode = 'password';
+  $('modal-title').textContent = 'Change panel login password';
+  $('modal-text').textContent = 'This changes the password for THIS panel login only. The Apache Basic Auth password is separate and is never changed here.';
+  $('modal-confirm-name-wrap').classList.add('hidden');
+  $('modal-pw-wrap').classList.remove('hidden');
+  $('modal-pw-current').value = '';
+  $('modal-pw-new').value = '';
+  $('modal-pw-confirm').value = '';
+  $('modal-pw-error').textContent = '';
+  $('modal').classList.remove('hidden');
+  $('modal-pw-current').focus();
   return new Promise((resolve) => { modalResolve = resolve; });
 }
 // Browser-only bootstrap: event wiring + first load. Guarded so test/ui.test.js
 // can require this file for actionButtons() without a DOM.
 if (typeof document !== 'undefined') {
-$('modal-ok').addEventListener('click', () => { $('modal').classList.add('hidden'); if (modalResolve) modalResolve($('modal-confirm-name').value); });
-$('modal-cancel').addEventListener('click', () => { $('modal').classList.add('hidden'); if (modalResolve) modalResolve(null); });
+$('modal-ok').addEventListener('click', () => {
+  if (modalMode === 'password') {
+    const cur = $('modal-pw-current').value;
+    const next = $('modal-pw-new').value;
+    const conf = $('modal-pw-confirm').value;
+    if (next !== conf) { $('modal-pw-error').textContent = 'new passwords do not match'; return; }
+    if (next.length < 12) { $('modal-pw-error').textContent = 'new password must be at least 12 characters'; return; }
+    closeModal({ mode: 'password', current_password: cur, new_password: next });
+    return;
+  }
+  closeModal($('modal-confirm-name').value);
+});
+$('modal-cancel').addEventListener('click', () => closeModal(null));
 
 async function onAppButton(id, act) {
   if (act === 'logs') { state.logId = id; state.logWhich = 'out'; await showLogs(); return; }
@@ -316,6 +355,17 @@ $('login-btn').addEventListener('click', async () => {
 for (const id of ['login-user', 'login-pass']) {
   $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') $('login-btn').click(); });
 }
+$('changepw-btn').addEventListener('click', async () => {
+  const out = await passwordModal();
+  if (!out || out.mode !== 'password') return;
+  try {
+    const r = await api('/api/auth/change-password', { method: 'POST', body: JSON.stringify({ current_password: out.current_password, new_password: out.new_password }) });
+    const n = r.other_sessions_revoked || 0;
+    toast(n ? `Password changed. ${n} other session${n === 1 ? '' : 's'} signed out.` : 'Password changed.');
+  } catch (e) {
+    toast(`Password change failed: ${e.message}`, 'err');
+  }
+});
 $('logout-btn').addEventListener('click', async () => {
   await api('/api/auth/logout', { method: 'POST', body: '{}' });
   await refreshMe();

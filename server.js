@@ -263,6 +263,42 @@ fastify.post('/api/auth/logout', async (req, reply) => {
   return { ok: true };
 });
 
+// Self-service password change for the panel's own login account. This is NOT
+// the Apache Basic Auth password, which is only ever changed by hand with
+// htpasswd and is never seen or handled by this app.
+fastify.post('/api/auth/change-password', async (req, reply) => {
+  if (!guardWrite(req, reply)) return;
+  const user = currentUser(req);
+  if (!user) { deny(reply, 401, 'login required'); return; }
+  const ip = ipOf(req);
+  if (loginBlocked(ip)) {
+    store.audit({ userId: user.id, username: user.username, action: 'change-password', result: 'locked', ip });
+    deny(reply, 429, 'too many attempts, try later');
+    return;
+  }
+  const { current_password: currentPassword, new_password: newPassword } = req.body || {};
+  const cookies = parseCookies(req.headers.cookie);
+  const keepToken = cookies[config.sessionCookie];
+  const res = store.changePassword(user.id, currentPassword, newPassword, keepToken);
+  if (!res.ok) {
+    // A wrong current password is a credential guess: count it like a failed
+    // login. Validation failures (too short / unchanged) do not.
+    const badCreds = /incorrect/.test(res.error);
+    const locked = badCreds ? loginFail(ip) : false;
+    store.audit({
+      userId: user.id, username: user.username, action: 'change-password',
+      result: locked ? 'locked' : badCreds ? 'denied' : 'rejected',
+      error: res.error, ip
+    });
+    if (locked) { deny(reply, 429, 'too many attempts, try later'); return; }
+    deny(reply, badCreds ? 401 : 400, res.error);
+    return;
+  }
+  loginOk(ip);
+  store.audit({ userId: user.id, username: user.username, action: 'change-password', result: 'ok', ip });
+  return { ok: true, other_sessions_revoked: res.evicted };
+});
+
 // ---------- discovery ----------
 fastify.post('/api/scan', async (req, reply) => {
   if (!guardWrite(req, reply)) return;

@@ -113,7 +113,33 @@ apachectl configtest && systemctl reload apache2
 The panel itself stays reachable over the SSH tunnel (`ssh -L 8787:127.0.0.1:8787`)
 even with Apache changes.
 
-## 3. Rotating the Basic Auth password
+## 3. Changing the panel login password
+
+This is the password for the `admin` account **inside the dashboard**. Change it
+from the UI: **Change password** next to Logout. It asks for the current
+password, a new one (minimum 12 characters), and a confirmation. On success:
+
+- the new password is hashed with the same scrypt parameters and written to
+  `data/users.json` (mode `0600`);
+- every **other** session for that user is signed out immediately; the session
+  you changed it from stays signed in;
+- an audit entry `change-password` is written. The password itself is never
+  logged, never returned by the API, and never appears in the audit file.
+
+A wrong current password returns `401` and counts toward the same per-IP lockout
+as a failed login. To recover without the UI, recreate the account:
+
+```sh
+node scripts/create-admin.js
+```
+
+## 4. Rotating the Basic Auth password
+
+**This is a different password from the panel login above.** The Basic Auth
+password (`vpsadmin`) is the outer Apache lock in front of the panel. The
+application never sees it, never stores it, and has no UI for changing it — by
+design. Changing the panel password does **not** change this one, and vice
+versa.
 
 Run it yourself; the prompt does not echo. **No `-c`** on an existing file
 (`-c` would truncate it):
@@ -131,7 +157,7 @@ ls -l /etc/apache2/.htpasswd-vps
 To add a second user, run the same command with a different username. Basic
 Auth has no lockout of its own, so use a long random password (24+ chars).
 
-## 4. Rotating the deploy key
+## 5. Rotating the deploy key
 
 1. On the VPS, generate a new key and show only the public half:
    ```sh
@@ -144,7 +170,7 @@ Auth has no lockout of its own, so use a long random password (24+ chars).
 
 Never edit `authorized_keys`; the deploy key is outbound-only.
 
-## 5. Certificate renewal
+## 6. Certificate renewal
 
 Issued with `certbot certonly --webroot -w /var/www/acme-vps -d vps.maxsolbiz.com`.
 Auto-renew runs via `certbot.timer` (enabled, active). This cert uses webroot,
@@ -170,7 +196,7 @@ certbot renew --dry-run --cert-name vps.maxsolbiz.com
 The ACME path is deliberately excluded from the HTTP→HTTPS redirect, which is
 what makes renewal work behind Basic Auth.
 
-## 6. Notes and gotchas
+## 7. Notes and gotchas
 
 - `vps.maxsolbiz.com` DNS must stay **DNS-only (grey cloud)**. An orange cloud
   would break the ACME challenge and hide the real client IP from Apache logs.

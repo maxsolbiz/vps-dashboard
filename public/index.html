@@ -12,6 +12,7 @@
   <h1>VPS Control Panel</h1>
   <div>
     <span id="session"></span>
+    <button id="changepw-btn" class="hidden">Change password</button>
     <button id="logout-btn" class="hidden">Logout</button>
   </div>
 </header>
@@ -106,6 +107,15 @@
     <div id="modal-confirm-name-wrap" class="hidden">
       <label>Type the app name to confirm stop:</label>
       <input id="modal-confirm-name" placeholder="app name">
+    </div>
+    <div id="modal-pw-wrap" class="hidden">
+      <label>Current password</label>
+      <input id="modal-pw-current" type="password" autocomplete="current-password">
+      <label>New password (min 12 characters)</label>
+      <input id="modal-pw-new" type="password" autocomplete="new-password">
+      <label>Confirm new password</label>
+      <input id="modal-pw-confirm" type="password" autocomplete="new-password">
+      <p id="modal-pw-error" class="warn"></p>
     </div>
     <button id="modal-ok">Confirm</button>
     <button id="modal-cancel">Cancel</button>
