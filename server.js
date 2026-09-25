@@ -410,9 +410,13 @@ function recordMetrics() {
     // Read the overview's EXISTING cached build. This must never trigger a
     // rebuild: the recorder runs on a timer and must not spawn ps/ss/df/pm2.
     const built = overviewlib.lastBuilt();
-    if (built && built.system) {
+    if (built && built.system && built.system.disk) {
       if (built.system.disk) lastDisk = parseFloat(built.system.disk.use_pct);
     }
+    // Disk comes from statfs (a syscall), not `df`, so the recorder never
+    // spawns a process and the figure is present even with no page open.
+    const du = sysmetrics.diskUsage('/');
+    if (du && du.usePct != null) lastDisk = du.usePct;
     // App names come from the saved scan (written by a scan, not by a page
     // view), so per-app history records even when nobody has the dashboard
     // open. Fall back to the overview's app list if the scan is missing.

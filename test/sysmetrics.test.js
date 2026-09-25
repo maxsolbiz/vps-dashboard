@@ -158,6 +158,18 @@ test('sample() exposes every field the dashboard renders', () => {
   }
 });
 
+test('diskUsage matches df semantics and never spawns a process', () => {
+  const d = sysm.diskUsage('/');
+  assert.ok(d, 'a real filesystem reports usage');
+  assert.ok(d.totalB > 0, 'total is positive');
+  assert.ok(d.usedB >= 0 && d.availB >= 0, 'used/available are non-negative');
+  assert.ok(d.usePct >= 0 && d.usePct <= 100, 'use% is a real percentage');
+  // df's Use% is used/(used+avail), not used/total: reserved blocks count as free.
+  const expected = Math.round(((d.usedB / (d.usedB + d.availB)) * 1000)) / 10;
+  assert.equal(d.usePct, expected, 'matches the df formula');
+  assert.equal(sysm.diskUsage('/definitely/not/a/mount'), null, 'bad path -> null, not 0');
+});
+
 test('history keeps a bounded ring and reports stats', () => {
   history.clear();
   for (let i = 0; i < history.cap() + 50; i++) {
