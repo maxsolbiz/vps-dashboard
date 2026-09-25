@@ -1,137 +1,300 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>VPS Control Panel</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>MAXSOLBIZ / VPS Control</title>
 <link rel="icon" href="/favicon.ico">
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-<header>
-  <h1>VPS Control Panel</h1>
-  <div>
-    <span id="session"></span>
-    <label id="actions-toggle-wrap" class="hidden" title="Master switch for starting/stopping apps">
-      <input type="checkbox" id="actions-toggle">
-      <span id="actions-toggle-label">actions disabled</span>
-    </label>
-    <button id="changepw-btn" class="hidden">Change password</button>
-    <button id="logout-btn" class="hidden">Logout</button>
-  </div>
-</header>
 
-<section id="login-view" class="card hidden">
-  <h2>Login</h2>
-  <input id="login-user" placeholder="username" autocomplete="username">
-  <input id="login-pass" type="password" placeholder="password" autocomplete="current-password">
-  <button id="login-btn">Login</button>
-  <p class="err" id="login-err"></p>
+<!-- ===================== LOGIN ===================== -->
+<section id="login-view" class="card hidden" aria-labelledby="login-h">
+  <h2 id="login-h">Sign in</h2>
+  <p class="muted">MAXSOLBIZ VPS Control</p>
+  <div class="login-fields">
+    <label for="login-user">Username</label>
+    <input id="login-user" placeholder="admin" autocomplete="username" autocapitalize="none" spellcheck="false">
+    <label for="login-pass">Password</label>
+    <input id="login-pass" type="password" placeholder="••••••••••••" autocomplete="current-password">
+    <button id="login-btn">Sign in</button>
+    <p id="login-err" class="err" role="alert"></p>
+  </div>
 </section>
 
-<main id="app-view" class="hidden">
-  <div id="policy-banner" class="hidden warn"></div>
-  <section class="card">
-    <h2>Discovery
-      <button id="scan-btn">SCAN VPS</button>
-      <span id="scan-meta" class="muted"></span>
-    </h2>
-    <p id="scan-diff" class="muted"></p>
-    <p id="scan-warn" class="warn"></p>
-    <div id="chips" class="chips"></div>
-  </section>
+<!-- ===================== APP SHELL ===================== -->
+<div id="app-view" class="app hidden">
 
-  <section class="card">
-    <h2>Server
-      <button id="refresh-btn" title="refresh">⟳</button>
-      <label class="muted"><input type="checkbox" id="live-toggle" checked> live (10 s)</label>
-    </h2>
-    <div id="server" class="grid"></div>
-  </section>
-
-  <section class="card">
-    <h2>Applications</h2>
-    <div class="filters">
-      <input id="search" placeholder="search name, domain, port…">
-      <button data-f="all" class="on">All</button>
-      <button data-f="production">Production</button>
-      <button data-f="test">Test</button>
-      <button data-f="utility">Utility</button>
-      <button data-f="unclassified">Unclassified</button>
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">MX</div>
+    <div class="brand-text">
+      <div class="brand-name">MAXSOLBIZ</div>
+      <div class="brand-sub">VPS CONTROL</div>
     </div>
-    <h3>Managed apps (PM2)</h3>
-    <table id="apps-pm2"><thead><tr>
-      <th>Name</th><th>Cat</th><th>Status</th><th>PID</th><th>CPU</th><th>RAM</th>
-      <th>Uptime</th><th>Ports</th><th>↺</th><th>Action</th>
-    </tr></thead><tbody></tbody></table>
-    <h3>Web sites</h3>
-    <table id="apps-web"><thead><tr>
-      <th>Name</th><th>Status</th><th>Domains</th><th>Root</th>
-    </tr></thead><tbody></tbody></table>
-    <h3>Unmanaged</h3>
-    <table id="apps-unmanaged"><thead><tr>
-      <th>Name</th><th>Status</th><th>PID</th><th>CPU</th><th>RAM</th><th>Note</th>
-    </tr></thead><tbody></tbody></table>
-    <h3>Infrastructure</h3>
-    <table id="apps-infra"><thead><tr>
-      <th>Name</th><th>Status</th><th>Note</th>
-    </tr></thead><tbody></tbody></table>
-  </section>
+  </div>
 
-  <section class="card">
-    <h2>Top consumers</h2>
-    <div class="cols">
-      <div><h3>CPU</h3><ol id="top-cpu"></ol></div>
-      <div><h3>RAM</h3><ol id="top-ram"></ol></div>
+  <header class="topbar">
+    <button id="nav-toggle" class="icon ghost nav-toggle" aria-label="Toggle navigation" aria-expanded="true">☰</button>
+    <div class="topbar-left">
+      <div class="server-pill" id="server-pill">
+        <span class="status running" id="server-status"><span class="glyph" aria-hidden="true">●</span><span>online</span></span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span class="name">Hetzner VPS</span>
+        <span class="sep extra" aria-hidden="true">·</span>
+        <span class="muted extra" id="server-quick">—</span>
+      </div>
     </div>
-  </section>
-
-  <section class="card">
-    <h2>Logs <span id="log-app" class="muted"></span></h2>
-    <div>
-      <button id="log-out">stdout</button>
-      <button id="log-err">stderr</button>
+    <div class="topbar-right">
+      <span id="session"></span>
+      <label id="actions-toggle-wrap" class="hidden" title="Master switch: allows starting and stopping apps">
+        <input type="checkbox" id="actions-toggle">
+        <span id="actions-toggle-label">actions disabled</span>
+      </label>
+      <button id="theme-btn" class="icon ghost" aria-label="Toggle colour theme" title="Toggle theme">◐</button>
+      <button id="changepw-btn" class="ghost hidden">Change password</button>
+      <button id="logout-btn" class="ghost hidden">Sign out</button>
     </div>
-    <pre id="logs">(use an app's Logs button)</pre>
-  </section>
+  </header>
 
-  <section class="card">
-    <h2>Audit log</h2>
-    <table id="audit">
-      <thead><tr><th>Time</th><th>User</th><th>App</th><th>Action</th><th>Result</th><th>IP</th></tr></thead>
-      <tbody></tbody>
-    </table>
-  </section>
-</main>
+  <nav class="nav" id="nav" aria-label="Sections">
+    <button class="nav-item on" data-view="dashboard" aria-current="page"><span class="ico" aria-hidden="true">◈</span><span class="lbl">Dashboard</span></button>
+    <button class="nav-item" data-view="applications"><span class="ico" aria-hidden="true">▤</span><span class="lbl">Applications</span><span class="count" id="nav-count-apps">0</span></button>
+    <button class="nav-item" data-view="processes"><span class="ico" aria-hidden="true">⚙</span><span class="lbl">Processes</span><span class="count" id="nav-count-procs">0</span></button>
+    <button class="nav-item" data-view="ports"><span class="ico" aria-hidden="true">⇄</span><span class="lbl">Ports</span><span class="count" id="nav-count-ports">0</span></button>
+    <button class="nav-item" data-view="logs"><span class="ico" aria-hidden="true">≡</span><span class="lbl">Logs</span></button>
+    <button class="nav-item" data-view="audit"><span class="ico" aria-hidden="true">◷</span><span class="lbl">Audit</span></button>
+    <button class="nav-item" data-view="settings"><span class="ico" aria-hidden="true">⚑</span><span class="lbl">Settings</span></button>
+  </nav>
 
-<div id="modal" class="hidden">
+  <main class="main" id="main">
+
+    <div id="policy-banner" class="banner hidden" role="status"></div>
+
+    <!-- ---------- DASHBOARD ---------- -->
+    <section class="view on" id="view-dashboard" aria-labelledby="h-dash">
+      <div class="view-head">
+        <h2 id="h-dash">Server health</h2>
+        <div class="card-head-actions">
+          <button id="scan-btn">Scan VPS</button>
+          <button id="refresh-btn" class="icon ghost" title="Refresh now" aria-label="Refresh now">⟳</button>
+          <label class="live-toggle"><input type="checkbox" id="live-toggle" checked> live</label>
+        </div>
+      </div>
+      <p id="scan-meta" class="muted"></p>
+      <p id="scan-diff" class="muted"></p>
+      <p id="scan-warn" class="warn"></p>
+
+      <div class="metrics" id="health-metrics" aria-live="polite">
+        <div class="metric"><div class="metric-label">&nbsp;</div><div class="metric-value">&mdash;</div></div>
+        <div class="metric"><div class="metric-label">&nbsp;</div><div class="metric-value">&mdash;</div></div>
+        <div class="metric"><div class="metric-label">&nbsp;</div><div class="metric-value">&mdash;</div></div>
+        <div class="metric"><div class="metric-label">&nbsp;</div><div class="metric-value">&mdash;</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Resource trend</h2>
+          <span class="spacer"></span>
+          <span class="muted" id="trend-note">collecting since page load</span>
+        </div>
+        <div class="card-body">
+          <div class="trend-grid">
+            <div class="trend"><div class="trend-label">CPU</div><svg class="chart" id="chart-cpu" viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true"></svg><div class="trend-val" id="val-cpu">—</div></div>
+            <div class="trend"><div class="trend-label">Memory</div><svg class="chart" id="chart-mem" viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true"></svg><div class="trend-val" id="val-mem">—</div></div>
+            <div class="trend"><div class="trend-label">Load (1m)</div><svg class="chart" id="chart-load" viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true"></svg><div class="trend-val" id="val-load">—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Attention</h2><span class="spacer"></span><span class="muted" id="alert-count"></span></div>
+        <div class="card-body" id="alerts"><div class="empty"><div class="big">—</div>Loading…</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Resource hotspots</h2></div>
+        <div class="card-body cols">
+          <div><h3>Top CPU</h3><ol class="rank" id="top-cpu"></ol></div>
+          <div><h3>Top memory</h3><ol class="rank" id="top-ram"></ol></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Server detail</h2></div>
+        <div class="card-body"><div id="server" class="grid"></div></div>
+      </div>
+    </section>
+
+    <!-- ---------- APPLICATIONS ---------- -->
+    <section class="view" id="view-applications" aria-labelledby="h-apps">
+      <div class="view-head"><h2 id="h-apps">Applications</h2></div>
+      <div class="card">
+        <div class="card-head">
+          <div class="filters">
+            <input id="search" placeholder="Search name, domain, port…" aria-label="Search applications">
+            <button data-f="all" class="on">All</button>
+            <button data-f="production">Production</button>
+            <button data-f="test">Test</button>
+            <button data-f="utility">Utility</button>
+            <button data-f="unclassified">Unclassified</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="chips" class="chips"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Managed applications</h2><span class="spacer"></span><span class="muted">PM2</span></div>
+        <div class="table-wrap table-desktop"><table id="apps-pm2"><thead><tr>
+          <th>Name</th><th>Category</th><th>Status</th><th class="num">PID</th><th class="num">CPU</th><th class="num">RAM</th>
+          <th>Uptime</th><th>Ports</th><th class="num">↺</th><th>Actions</th>
+        </tr></thead><tbody></tbody></table></div>
+        <div id="apps-pm2-cards" class="app-cards card-body"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Web sites</h2></div>
+        <div class="table-wrap table-desktop"><table id="apps-web"><thead><tr>
+          <th>Name</th><th>Status</th><th>Domains</th><th>Document root</th>
+        </tr></thead><tbody></tbody></table></div>
+        <div id="apps-web-empty" class="empty hidden"><div class="big">No web sites</div>No Apache document-root sites discovered.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Unmanaged</h2></div>
+        <div class="table-wrap table-desktop"><table id="apps-unmanaged"><thead><tr>
+          <th>Name</th><th>Status</th><th class="num">PID</th><th class="num">CPU</th><th class="num">RAM</th><th>Note</th>
+        </tr></thead><tbody></tbody></table></div>
+        <div id="apps-unmanaged-empty" class="empty hidden"><div class="big">Nothing unmanaged</div>Every running process is accounted for.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Infrastructure</h2></div>
+        <div class="table-wrap table-desktop"><table id="apps-infra"><thead><tr>
+          <th>Unit</th><th>Status</th><th>Detail</th>
+        </tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- ---------- PROCESSES ---------- -->
+    <section class="view" id="view-processes" aria-labelledby="h-procs">
+      <div class="view-head">
+        <h2 id="h-procs">Processes</h2>
+        <span class="spacer"></span>
+        <input id="proc-search" placeholder="Filter processes…" aria-label="Filter processes" class="mini-input">
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>PM2-managed process trees</h2><span class="spacer"></span><span class="muted">read-only</span></div>
+        <div class="table-wrap table-desktop"><table id="procs-table"><thead><tr>
+          <th class="num">PID</th><th>Process</th><th>Status</th><th class="num">CPU</th><th class="num">RSS</th><th>Uptime</th><th class="num">Tree PIDs</th>
+        </tr></thead><tbody></tbody></table></div>
+        <div id="procs-cards" class="app-cards card-body"></div>
+        <div id="procs-empty" class="empty hidden"><div class="big">PM2 unavailable</div>Could not read the PM2 process list.</div>
+      </div>
+      <p class="muted note">This panel can only start/stop applications listed in the policy allow list. Arbitrary process termination is not offered.</p>
+    </section>
+
+    <!-- ---------- PORTS ---------- -->
+    <section class="view" id="view-ports" aria-labelledby="h-ports">
+      <div class="view-head"><h2 id="h-ports">Listening ports</h2></div>
+      <div class="card">
+        <div class="card-head"><h2>TCP listeners</h2><span class="spacer"></span><span class="muted" id="ports-note"></span></div>
+        <div class="table-wrap table-desktop"><table id="ports-table"><thead><tr>
+          <th class="num">Port</th><th>Bind</th><th>Scope</th><th>Application</th><th>Domains</th>
+        </tr></thead><tbody></tbody></table></div>
+        <div id="ports-cards" class="app-cards card-body"></div>
+        <div id="ports-empty" class="empty hidden"><div class="big">No ports discovered</div>Run a scan to discover listening ports.</div>
+      </div>
+    </section>
+
+    <!-- ---------- LOGS ---------- -->
+    <section class="view" id="view-logs" aria-labelledby="h-logs">
+      <div class="view-head"><h2 id="h-logs">Logs</h2><span class="spacer"></span><span class="muted" id="log-app"></span></div>
+      <div class="card">
+        <div class="card-head">
+          <button id="log-out" class="sm">stdout</button>
+          <button id="log-err" class="sm">stderr</button>
+          <span class="spacer"></span>
+          <button id="log-refresh" class="sm ghost">Refresh</button>
+        </div>
+        <div class="card-body tight">
+          <pre id="logs" tabindex="0">Select an application and choose Logs to stream its output here.</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- AUDIT ---------- -->
+    <section class="view" id="view-audit" aria-labelledby="h-audit">
+      <div class="view-head"><h2 id="h-audit">Audit log</h2></div>
+      <div class="card">
+        <div class="table-wrap table-desktop"><table id="audit"><thead><tr>
+          <th>Time</th><th>User</th><th>Application</th><th>Action</th><th>Result</th><th>IP</th>
+        </tr></thead><tbody></tbody></table></div>
+        <div id="audit-empty" class="empty hidden"><div class="big">No audit entries</div>Activity will appear here.</div>
+      </div>
+    </section>
+
+    <!-- ---------- SETTINGS ---------- -->
+    <section class="view" id="view-settings" aria-labelledby="h-set">
+      <div class="view-head"><h2 id="h-set">Settings</h2></div>
+      <div class="card">
+        <div class="card-head"><h2>Actions master switch</h2></div>
+        <div class="card-body">
+          <p class="muted">Controls whether this panel may start or stop applications at all. It does not change which applications are permitted — that is the policy allow list.</p>
+          <div class="setting-row">
+            <span id="setting-switch-state" class="status stopped"><span class="glyph" aria-hidden="true">○</span><span>disabled</span></span>
+            <button id="settings-toggle-btn" class="ghost">Enable actions…</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Password</h2></div>
+        <div class="card-body">
+          <p class="muted">Changes the password for this panel login only. The Apache Basic Auth password in front of the panel is separate and is never managed here.</p>
+          <div class="setting-row"><button id="changepw-btn-2" class="ghost">Change panel password…</button></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Policy</h2></div>
+        <div class="card-body"><div id="policy-info" class="grid"></div></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ===================== MODAL ===================== -->
+<div id="modal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
   <div class="modal-body">
     <h3 id="modal-title"></h3>
     <p id="modal-text"></p>
     <div id="modal-confirm-name-wrap" class="hidden">
-      <label>Type the app name to confirm stop:</label>
-      <input id="modal-confirm-name" placeholder="app name">
+      <label for="modal-confirm-name">Type the app name to confirm stop:</label>
+      <input id="modal-confirm-name" placeholder="app name" autocomplete="off">
     </div>
     <div id="modal-confirm-word-wrap" class="hidden">
-      <label>Type <b>ENABLE</b> to confirm:</label>
+      <label for="modal-confirm-word">Type <b>ENABLE</b> to confirm:</label>
       <input id="modal-confirm-word" autocomplete="off">
       <p id="modal-confirm-word-error" class="warn"></p>
     </div>
     <div id="modal-pw-wrap" class="hidden">
-      <label>Current password</label>
+      <label for="modal-pw-current">Current password</label>
       <input id="modal-pw-current" type="password" autocomplete="current-password">
-      <label>New password (min 12 characters)</label>
+      <label for="modal-pw-new">New password (min 12 characters)</label>
       <input id="modal-pw-new" type="password" autocomplete="new-password">
-      <label>Confirm new password</label>
+      <label for="modal-pw-confirm">Confirm new password</label>
       <input id="modal-pw-confirm" type="password" autocomplete="new-password">
-      <p id="modal-pw-error" class="warn"></p>
+      <p id="modal-pw-error" class="warn" role="alert"></p>
     </div>
     <button id="modal-ok">Confirm</button>
-    <button id="modal-cancel">Cancel</button>
+    <button id="modal-cancel" class="ghost">Cancel</button>
   </div>
 </div>
 
-<div id="toasts"></div>
+<div id="toasts" aria-live="polite" aria-atomic="false"></div>
 <script src="/app.js"></script>
 </body>
 </html>

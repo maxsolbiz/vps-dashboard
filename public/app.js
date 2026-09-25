@@ -134,28 +134,54 @@ function renderScan(r) {
   const webrows = items.filter((a) => a.kind === 'website');
   const unrows = items.filter((a) => a.kind === 'unmanaged');
   const infrarows = items.filter((a) => a.kind === 'infra');
+  $('nav-count-apps').textContent = pm2rows.length;
 
-  document.querySelector('#apps-pm2 tbody').innerHTML = pm2rows.map((a) => {
+  const emptyRow = (cols, msg) => `<tr><td colspan="${cols}" class="wrap"><div class="empty"><div class="big">—</div>${msg}</div></td></tr>`;
+
+  document.querySelector('#apps-pm2 tbody').innerHTML = pm2rows.length ? pm2rows.map((a) => {
     const live = isLiveStatus(a.status);
     const pend = state.pending.has(a.id);
     const btns = actionButtons(a, pend);
     const ports = (a.ports || []).map((p) => `${p.port}${p.public ? ' ⚠' : ''}`).join(', ') || '—';
     const drift = a.kind === 'pm2' && live && r.drift && r.drift.running_not_in_dump.includes(a.name)
       ? '<span class="badge">not in dump</span>' : '';
-    return `<tr><td><b>${esc(a.display_name || a.name)}</b>${drift}<br><small>${esc(a.id)}${(a.domains || []).length ? ' · ' + esc(a.domains.join(', ')) : ''}</small></td>
+    return `<tr><td><b>${esc(a.display_name || a.name)}</b>${drift}<br><span class="app-sub">${esc(a.id)}${(a.domains || []).length ? ' · ' + esc(a.domains.join(', ')) : ''}</span></td>
       <td><span class="tag ${esc(a.category)}">${esc(a.category)}</span></td>
-      <td><span class="dot ${esc(a.status)}">●</span> ${esc(a.status)}</td>
-      <td>${(a.pids || [])[0] || '—'}</td><td>${a.cpu_pct != null ? a.cpu_pct + '%' : '—'}</td>
-      <td>${fmtMB(a.rss_b)}</td><td>${fmtUp(a.uptime_s)}</td><td>${esc(ports)}</td>
-      <td>${a.restarts != null ? a.restarts : '—'}</td><td>${btns || '<i>—</i>'}</td></tr>`;
-  }).join('');
+      <td>${statusCell(a.status)}</td>
+      <td class="num">${(a.pids || [])[0] || '—'}</td><td class="num">${a.cpu_pct != null ? a.cpu_pct + '%' : '—'}</td>
+      <td class="num">${fmtMB(a.rss_b)}</td><td>${fmtUp(a.uptime_s)}</td><td class="mono">${esc(ports)}</td>
+      <td class="num">${a.restarts != null ? a.restarts : '—'}</td><td class="actions">${btns || '<span class="muted">—</span>'}</td></tr>`;
+  }).join('') : emptyRow(10, 'No managed applications match the current filter.');
+
+  // Mobile: the same rows as cards, so the page never needs horizontal scroll.
+  $('apps-pm2-cards').innerHTML = pm2rows.map((a) => {
+    const pend = state.pending.has(a.id);
+    const btns = actionButtons(a, pend);
+    return `<div class="app-card">
+      <div class="app-card-top">
+        <div class="nm"><div class="app-card-name">${esc(a.display_name || a.name)}</div>
+          <span class="tag ${esc(a.category)}">${esc(a.category)}</span></div>
+        ${statusCell(a.status)}
+      </div>
+      <div class="app-card-stats">
+        <div><div class="k">CPU</div><div class="v">${a.cpu_pct != null ? a.cpu_pct + '%' : '—'}</div></div>
+        <div><div class="k">RAM</div><div class="v">${fmtMB(a.rss_b)}</div></div>
+        <div><div class="k">Port</div><div class="v">${(a.ports || [])[0] ? esc(a.ports[0].port) : '—'}</div></div>
+      </div>
+      <div class="app-card-meta muted">uptime ${fmtUp(a.uptime_s)} · pid ${(a.pids || [])[0] || '—'} · restarts ${a.restarts != null ? a.restarts : '—'}</div>
+      <div class="app-card-actions">${btns}</div>
+    </div>`;
+  }).join('') || '<div class="empty"><div class="big">—</div>No managed applications match the current filter.</div>';
+
   document.querySelector('#apps-web tbody').innerHTML = webrows.map((a) =>
-    `<tr><td><b>${esc(a.display_name || a.name)}</b></td><td><span class="dot ${esc(a.status)}">●</span> ${esc(a.status)}</td>
-     <td>${esc((a.domains || []).join(', '))}</td><td>${esc(a.cwd || '')}</td></tr>`).join('');
+    `<tr><td><b>${esc(a.display_name || a.name)}</b></td><td>${statusCell(a.status)}</td>
+     <td class="wrap">${esc((a.domains || []).join(', '))}</td><td class="wrap muted">${esc(a.cwd || '')}</td></tr>`).join('');
+  $('apps-web-empty').classList.toggle('hidden', webrows.length > 0);
   document.querySelector('#apps-unmanaged tbody').innerHTML = unrows.map((a) =>
-    `<tr><td><b>${esc(a.name)}</b></td><td><span class="dot ${esc(a.status)}">●</span> ${esc(a.status)}</td>
-     <td>${(a.pids || [])[0] || '—'}</td><td>${a.cpu_pct != null ? a.cpu_pct + '%' : '—'}</td>
-     <td>${fmtMB(a.rss_b)}</td><td>${esc(a.notes || '')}</td></tr>`).join('');
+    `<tr><td><b>${esc(a.name)}</b></td><td>${statusCell(a.status)}</td>
+     <td class="num">${(a.pids || [])[0] || '—'}</td><td class="num">${a.cpu_pct != null ? a.cpu_pct + '%' : '—'}</td>
+     <td class="num">${fmtMB(a.rss_b)}</td><td class="wrap muted">${esc(a.notes || '')}</td></tr>`).join('');
+  $('apps-unmanaged-empty').classList.toggle('hidden', unrows.length > 0);
   document.querySelector('#apps-infra tbody').innerHTML = infrarows.map((a) =>
     `<tr><td><b>${esc(a.name)}</b></td><td><span class="dot ${esc(a.status)}">●</span> ${esc(a.status)}</td>
      <td>${esc(a.notes || '')}</td></tr>`).join('');
@@ -190,17 +216,6 @@ function mergeOverview(ov) {
   }
 }
 
-function renderServerCard(ov) {
-  if (!ov.system) return;
-  const m = ov.system.mem;
-  $('server').innerHTML =
-    `<div><b>RAM</b><br>${m.use_pct}% used (${m.source}${m.estimated ? ', estimated' : ''})</div>` +
-    `<div><b>Swap</b><br>${(m.swap_used_b / 1073741824).toFixed(2)} / ${(m.swap_total_b / 1073741824).toFixed(2)} GB</div>` +
-    `<div><b>Load</b><br>${ov.system.load.map((x) => x.toFixed(2)).join(' / ')} · ${ov.system.cpus} cores</div>` +
-    `<div><b>Disk /</b><br>${ov.system.disk ? ov.system.disk.use_pct + ' used' : 'n/a'}</div>` +
-    `<div><b>Uptime</b><br>${fmtUp(ov.system.uptime_s)}</div>`;
-}
-
 async function authLost(e) {
   if (e && e.status === 401) { await refreshMe(); return true; }
   return false;
@@ -222,31 +237,369 @@ async function refreshOverviewAndMerge() {
   if (state.scan) renderScan(state.scan);
 }
 
+// ---------- view switching ----------
+const VIEWS = ['dashboard', 'applications', 'processes', 'ports', 'logs', 'audit', 'settings'];
+function showView(name) {
+  if (!VIEWS.includes(name)) name = 'dashboard';
+  for (const v of VIEWS) {
+    const el = $(`view-${v}`);
+    if (el) el.classList.toggle('on', v === name);
+  }
+  document.querySelectorAll('.nav-item').forEach((b) => {
+    const on = b.dataset.view === name;
+    b.classList.toggle('on', on);
+    if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
+  state.view = name;
+  if (location.hash.slice(1) !== name) history.replaceState(null, '', `#${name}`);
+  window.scrollTo(0, 0);
+}
+
+// ---------- theme ----------
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  try { localStorage.setItem('panel-theme', t); } catch (_) { /* private mode */ }
+}
+
+// ---------- formatting ----------
+function fmtBytes(b) {
+  if (b == null || isNaN(b)) return '—';
+  const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0; let n = Number(b);
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return `${n >= 100 || i === 0 ? Math.round(n) : n.toFixed(1)} ${u[i]}`;
+}
+function meterClass(pct) {
+  if (pct == null || isNaN(pct)) return '';
+  if (pct >= 90) return 'crit';
+  if (pct >= 75) return 'warn';
+  return 'ok';
+}
+// CSP forbids inline styles, so meter widths are 5%-step utility classes.
+function widthClass(pct) {
+  const p = Math.max(0, Math.min(100, Number(pct) || 0));
+  return `w${Math.round(p / 5) * 5}`;
+}
+function statusCell(status) {
+  const s = String(status || 'unknown');
+  const glyph = s === 'running' ? '●' : (s === 'stopped' ? '○' : (s === 'errored' || s === 'missing' ? '✕' : '◐'));
+  return `<span class="status ${esc(s)}"><span class="glyph" aria-hidden="true">${glyph}</span>${esc(s)}</span>`;
+}
+
+// ---------- dashboard: health metrics ----------
+function renderHealth(ov) {
+  const sys = ov && ov.system;
+  const box = $('health-metrics');
+  if (!box) return;
+  if (!sys) {
+    box.innerHTML = '<div class="metric"><div class="metric-label">System</div>'
+      + '<div class="metric-value">unavailable</div>'
+      + '<div class="metric-sub">monitoring data could not be read</div></div>';
+    return;
+  }
+  const mem = sys.mem || {};
+  const disk = sys.disk;
+  const load = Array.isArray(sys.load) ? sys.load : [];
+  const cards = [
+    { label: 'CPU', cores: sys.cpus, value: '—', sub: `${sys.cpus || '?'} cores` },
+    { label: 'Memory', value: fmtBytes(mem.used_b), pct: mem.use_pct,
+      sub: `${fmtBytes(mem.available_b)} available of ${fmtBytes(mem.total_b)}` },
+    { label: 'Swap', value: fmtBytes(mem.swap_used_b),
+      sub: mem.swap_total_b ? `of ${fmtBytes(mem.swap_total_b)}` : 'not configured' },
+    { label: 'Disk /', value: disk ? fmtBytes(Number(disk.used_kb || 0) * 1024) : '—', pct: disk ? parseFloat(disk.use_pct) : null,
+      sub: disk ? `${fmtBytes(Number(disk.avail_kb || 0) * 1024)} free of ${fmtBytes(Number(disk.total_kb || 0) * 1024)}` : 'unavailable' },
+    { label: 'Load (1m)', value: load.length ? load[0].toFixed(2) : '—',
+      sub: load.length > 1 ? `5m ${load[1].toFixed(2)} · 15m ${load[2].toFixed(2)}` : '' },
+    { label: 'Uptime', value: fmtUp(sys.uptime_s), sub: `since boot` }
+  ];
+  box.innerHTML = cards.map((c) => {
+    const pct = c.pct;
+    const bar = pct != null && !isNaN(pct)
+      ? `<div class="meter ${meterClass(pct)}"><i class="${widthClass(pct)}"></i></div>` : '';
+    return `<div class="metric">
+      <div class="metric-label">${esc(c.label)}</div>
+      <div class="metric-value">${esc(c.value)}</div>
+      <div class="metric-sub">${esc(c.sub || '')}</div>
+      ${bar}
+    </div>`;
+  }).join('');
+
+  $('server-quick').textContent = mem.use_pct != null ? `mem ${mem.use_pct}%` : '—';
+  const st = $('server-status');
+  if (st) {
+    const bad = mem.use_pct >= 90 || (disk && parseFloat(disk.use_pct) >= 90);
+    st.className = `status ${bad ? 'errored' : 'running'}`;
+    st.innerHTML = `<span class="glyph" aria-hidden="true">${bad ? '✕' : '●'}</span><span>${bad ? 'degraded' : 'online'}</span>`;
+  }
+}
+
+// ---------- dashboard: session-collected sparklines ----------
+// The backend exposes no history, so we plot only samples actually observed
+// since this page loaded. Nothing is invented.
+const trend = { cpu: [], mem: [], load: [], lastCpu: null, max: 40 };
+function pushTrend(ov) {
+  const sys = ov && ov.system;
+  if (!sys) return;
+  const t = Date.now();
+  const add = (arr, v) => { if (typeof v === 'number' && !isNaN(v)) arr.push({ t, v }); };
+  // The backend exposes no whole-system CPU percentage. Summing the real
+  // per-process CPU from /proc deltas is honest and answers "what is burning
+  // CPU", so that is what is plotted — never an invented system figure.
+  const appCpu = (ov.apps || []).reduce((s, a) => s + (Number(a.cpu_pct) || 0), 0);
+  trend.lastCpu = Math.round(appCpu * 10) / 10;
+  const memPct = sys.mem ? sys.mem.use_pct : null;
+  add(trend.cpu, trend.lastCpu);
+  add(trend.mem, memPct);
+  add(trend.load, Array.isArray(sys.load) ? sys.load[0] : null);
+  if (trend.cpu.length > 60) trend.cpu.shift();
+  if (trend.mem.length > 60) trend.mem.shift();
+  if (trend.load.length > 60) trend.load.shift();
+  const cap = Math.max(20, Math.ceil(trend.lastCpu / 10) * 10);
+  drawChart('chart-cpu', trend.cpu, cap);
+  drawChart('chart-mem', trend.mem, 100);
+  drawChart('chart-load', trend.load, Math.max(1, (sys.cpus || 1) * 2));
+  $('val-cpu').textContent = `${trend.lastCpu}% across apps`;
+  $('val-mem').textContent = memPct != null ? `${memPct}%` : '—';
+  $('val-load').textContent = Array.isArray(sys.load) ? sys.load[0].toFixed(2) : '—';
+  $('trend-note').textContent = `${trend.cpu.length} sample${trend.cpu.length === 1 ? '' : 's'} since page load`;
+}
+function drawChart(id, pts, max) {
+  const svg = $(id);
+  if (!svg) return;
+  if (pts.length < 2) {
+    svg.innerHTML = '<line class="grid-line" x1="0" y1="55" x2="300" y2="55"></line>';
+    return;
+  }
+  const W = 300; const H = 56;
+  const span = Math.max(1, max);
+  const step = W / Math.max(1, pts.length - 1);
+  const coords = pts.map((p, i) => {
+    const y = H - Math.max(0, Math.min(1, p.v / span)) * (H - 4) - 2;
+    return [i * step, y];
+  });
+  const line = coords.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  const area = `${line} L${W},${H} L0,${H} Z`;
+  const crit = pts[pts.length - 1].v / span > 0.9 ? ' crit' : (pts[pts.length - 1].v / span > 0.75 ? ' warn' : '');
+  svg.innerHTML = `<line class="grid-line" x1="0" y1="${H - 2}" x2="${W}" y2="${H - 2}"></line>`
+    + `<path class="area${crit}" d="${area}"></path><path class="line${crit}" d="${line}"></path>`;
+}
+
+// ---------- dashboard: alerts (real rules only) ----------
+function renderAlerts(ov, scan) {
+  const box = $('alerts');
+  if (!box) return;
+  const out = [];
+  const sys = ov && ov.system;
+  if (sys && sys.mem && sys.mem.use_pct >= 80) {
+    out.push({ lvl: sys.mem.use_pct >= 90 ? 'crit' : 'warn', ico: '▲',
+      t: `Memory usage ${sys.mem.use_pct}%`, s: `${fmtBytes(sys.mem.used_b)} used of ${fmtBytes(sys.mem.total_b)}` });
+  }
+  if (sys && sys.disk && parseFloat(sys.disk.use_pct) >= 80) {
+    out.push({ lvl: 'warn', ico: '▲', t: `Disk usage ${sys.disk.use_pct}`, s: `${fmtBytes(Number(sys.disk.avail_kb || 0) * 1024)} remaining on /` });
+  }
+  const items = (scan && scan.items) || [];
+  for (const a of items) {
+    if (a.kind !== 'pm2' && a.kind !== 'panel') continue;
+    if (a.rss_b && a.rss_b > 800 * 1024 * 1024) {
+      out.push({ lvl: 'warn', ico: '▲', t: `${a.name} is using ${fmtBytes(a.rss_b)} RAM`, s: a.category || 'application' });
+    }
+    if (a.status === 'errored' || a.status === 'missing') {
+      out.push({ lvl: 'crit', ico: '✕', t: `${a.name} is ${a.status}`, s: a.pids && a.pids[0] ? `pid ${a.pids[0]}` : 'not running' });
+    }
+  }
+  const stopped = items.filter((a) => a.kind === 'pm2' && a.status === 'stopped').length;
+  if (stopped) {
+    out.push({ lvl: 'info', ico: 'ℹ', t: `${stopped} managed application${stopped === 1 ? ' is' : 's are'} stopped`, s: 'expected if intentionally disabled' });
+  }
+  $('alert-count').textContent = out.length ? `${out.length} item${out.length === 1 ? '' : 's'}` : '';
+  if (!out.length) {
+    box.innerHTML = '<div class="empty"><div class="big">✓</div>No issues detected. All monitored values are within normal ranges.</div>';
+    return;
+  }
+  box.innerHTML = out.map((a) => `<div class="alert-item ${esc(a.lvl)}">
+      <span class="ico" aria-hidden="true">${a.ico}</span>
+      <span class="txt"><span class="ttl">${esc(a.t)}</span><br><span class="sub">${esc(a.s)}</span></span>
+    </div>`).join('');
+}
+
+// ---------- processes ----------
+function renderProcesses(ov) {
+  const tb = document.querySelector('#procs-table tbody');
+  if (!tb) return;
+  const apps = (ov && ov.apps) || [];
+  $('nav-count-procs').textContent = apps.length;
+  if (!apps.length) {
+    tb.innerHTML = '';
+    $('procs-cards').innerHTML = '';
+    $('procs-empty').classList.remove('hidden');
+    return;
+  }
+  $('procs-empty').classList.add('hidden');
+  const q = ($('proc-search').value || '').toLowerCase();
+  const rows = apps.filter((a) => !q || String(a.name).toLowerCase().includes(q));
+  tb.innerHTML = rows.map((a) => `<tr>
+      <td class="num">${a.pid || '—'}</td>
+      <td class="app-name">${esc(a.name)}<br><span class="app-sub">${esc(a.category || '')}</span></td>
+      <td>${statusCell(a.status)}</td>
+      <td class="num">${a.cpu_pct != null ? a.cpu_pct + '%' : '—'}</td>
+      <td class="num">${fmtBytes(a.rss_b)}</td>
+      <td>${fmtUp(a.uptime_s)}</td>
+      <td class="num">${(a.pids || []).length}</td>
+    </tr>`).join('');
+  $('procs-cards').innerHTML = rows.map((a) => `<div class="app-card">
+      <div class="app-card-top"><div class="nm"><div class="app-card-name">${esc(a.name)}</div>
+      <span class="tag ${esc(a.category || 'unclassified')}">${esc(a.category || 'unclassified')}</span></div>
+      ${statusCell(a.status)}</div>
+      <div class="app-card-stats">
+        <div><div class="k">PID</div><div class="v">${a.pid || '—'}</div></div>
+        <div><div class="k">CPU</div><div class="v">${a.cpu_pct != null ? a.cpu_pct + '%' : '—'}</div></div>
+        <div><div class="k">RSS</div><div class="v">${fmtBytes(a.rss_b)}</div></div>
+      </div></div>`).join('');
+}
+
+// ---------- ports ----------
+function renderPorts(scan) {
+  const tb = document.querySelector('#ports-table tbody');
+  if (!tb) return;
+  const items = (scan && scan.items) || [];
+  const rows = [];
+  const seen = new Set();
+  for (const a of items) {
+    for (const p of (a.ports || [])) {
+      const key = `${p.port}:${p.bind}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push({ port: p.port, bind: p.bind, public: p.public, app: a.name, domains: a.domains || [] });
+    }
+  }
+  rows.sort((x, y) => x.port - y.port);
+  $('nav-count-ports').textContent = rows.length;
+  $('ports-note').textContent = rows.length ? `${rows.filter((r) => r.public).length} publicly bound` : '';
+  if (!rows.length) {
+    tb.innerHTML = ''; $('ports-cards').innerHTML = '';
+    $('ports-empty').classList.remove('hidden');
+    return;
+  }
+  $('ports-empty').classList.add('hidden');
+  tb.innerHTML = rows.map((r) => `<tr>
+      <td class="num">${r.port}</td>
+      <td class="mono">${esc(r.bind)}</td>
+      <td>${r.public ? '<span class="tag production">public</span>' : '<span class="tag unclassified">local</span>'}</td>
+      <td class="app-name">${esc(r.app)}</td>
+      <td class="wrap muted">${esc(r.domains.join(', ') || '—')}</td>
+    </tr>`).join('');
+  $('ports-cards').innerHTML = rows.map((r) => `<div class="app-card">
+      <div class="app-card-top"><div class="nm"><div class="app-card-name">:${r.port}</div>
+      <span class="app-sub">${esc(r.app)}</span></div>
+      ${r.public ? '<span class="tag production">public</span>' : '<span class="tag unclassified">local</span>'}</div>
+      <div class="app-card-stats">
+        <div><div class="k">Bind</div><div class="v">${esc(r.bind)}</div></div>
+        <div><div class="k">Port</div><div class="v">${r.port}</div></div>
+        <div><div class="k">Domains</div><div class="v">${r.domains.length}</div></div>
+      </div></div>`).join('');
+}
+
+// ---------- settings ----------
+function renderPolicyInfo(me) {
+  const box = $('policy-info');
+  if (!box) return;
+  const enabled = !!(me && me.actions_enabled);
+  $('setting-switch-state').className = `status ${enabled ? 'running' : 'stopped'}`;
+  $('setting-switch-state').innerHTML = `<span class="glyph" aria-hidden="true">${enabled ? '●' : '○'}</span><span>${enabled ? 'enabled' : 'disabled'}</span>`;
+  $('settings-toggle-btn').textContent = enabled ? 'Disable actions' : 'Enable actions…';
+  const scan = state.scan;
+  const allowed = (scan && scan.items ? scan.items : []).filter((a) => (a.actions || []).length).length;
+  box.innerHTML = `
+    <div><div class="k">Master switch</div><div class="v">${enabled ? 'enabled' : 'disabled'}</div></div>
+    <div><div class="k">Apps with actions</div><div class="v">${allowed}</div></div>
+    <div><div class="k">Scan</div><div class="v">${scan && scan.scanned_at ? esc(scan.scanned_at) : 'not scanned'}</div></div>
+    <div><div class="k">Signed in as</div><div class="v">${me && me.user ? esc(me.user.username) : '—'}</div></div>`;
+}
+
+function renderServerCard(ov) {
+  const box = $('server');
+  if (!box) return;
+  const sys = ov && ov.system;
+  if (!sys) { box.innerHTML = '<div class="empty"><div class="big">Unavailable</div>System metrics could not be read.</div>'; return; }
+  const mem = sys.mem || {};
+  const d = sys.disk;
+  box.innerHTML = `
+    <div><div class="k">Hostname</div><div class="v">${esc(state.scan && state.scan.hostname ? state.scan.hostname : 'not reported')}</div></div>
+    <div><div class="k">CPU cores</div><div class="v">${sys.cpus || '—'}</div></div>
+    <div><div class="k">Memory</div><div class="v">${fmtBytes(mem.used_b)} / ${fmtBytes(mem.total_b)}</div></div>
+    <div><div class="k">Memory available</div><div class="v">${fmtBytes(mem.available_b)}</div></div>
+    <div><div class="k">Swap</div><div class="v">${mem.swap_total_b ? `${fmtBytes(mem.swap_used_b)} / ${fmtBytes(mem.swap_total_b)}` : 'not configured'}</div></div>
+    <div><div class="k">Disk /</div><div class="v">${d ? `${d.use_pct} used` : 'unavailable'}</div></div>
+    <div><div class="k">Load average</div><div class="v">${Array.isArray(sys.load) ? sys.load.map((n) => n.toFixed(2)).join(' / ') : '—'}</div></div>
+    <div><div class="k">Uptime</div><div class="v">${fmtUp(sys.uptime_s)}</div></div>`;
+}
+
 async function refreshAll() {
   try {
     await refreshOverviewAndMerge();
   } catch (e) {
     if (await authLost(e)) return;
   }
+  const ov = state.overview;
+  renderHealth(ov);
+  renderServerCard(ov);
+  renderProcesses(ov);
+  renderAlerts(ov, state.scan);
+  renderPolicyInfo(state.me);
+  if (ov) {
+    // CPU is only meaningful as a whole-box number once merged.
+    const cpuSum = (ov.apps || []).reduce((s, a) => s + (Number(a.cpu_pct) || 0), 0);
+    if (Number.isFinite(cpuSum)) {
+      $('server-quick').textContent = ov.system && ov.system.mem ? `cpu ${cpuSum.toFixed(0)}% · mem ${ov.system.mem.use_pct}%` : `cpu ${cpuSum.toFixed(0)}%`;
+    }
+  }
+  pushTrend(ov);
   try {
     const d = await api('/api/audit?limit=50');
-    document.querySelector('#audit tbody').innerHTML = d.entries.map((e) =>
-      `<tr><td>${esc(e.t)}</td><td>${esc(e.user || '')}</td><td>${esc(e.app || '')}</td>
-       <td>${esc(e.action)}</td><td>${esc(e.result)}${e.error ? ' · ' + esc(e.error) : ''}</td><td>${esc(e.ip || '')}</td></tr>`).join('');
+    const entries = d.entries || [];
+    document.querySelector('#audit tbody').innerHTML = entries.map((e) =>
+      `<tr><td class="mono">${esc(e.t)}</td><td>${esc(e.user || '')}</td><td>${esc(e.app || '')}</td>
+       <td>${esc(e.action)}</td><td><span class="tag ${e.result === 'ok' ? 'production' : 'utility'}">${esc(e.result)}</span>${e.error ? ' <span class="muted">' + esc(e.error) + '</span>' : ''}</td><td class="mono">${esc(e.ip || '')}</td></tr>`).join('');
+    $('audit-empty').classList.toggle('hidden', entries.length > 0);
   } catch (e) { await authLost(e); }
 }
 
 let modalResolve = null;
 let modalMode = 'confirm';
+let lastFocus = null;
+function focusables() {
+  const box = $('modal');
+  if (!box) return [];
+  return [...box.querySelectorAll('input, button, [tabindex]:not([tabindex="-1"])')]
+    .filter((n) => !n.disabled && n.offsetParent !== null);
+}
+function trapTab(e) {
+  if (e.key !== 'Tab') return;
+  const f = focusables();
+  if (!f.length) return;
+  const first = f[0];
+  const last = f[f.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+}
 function closeModal(value) {
-  $('modal').classList.add('hidden');
+  const box = $('modal');
+  if (box) box.classList.add('hidden');
   $('modal-pw-current').value = '';
   $('modal-pw-new').value = '';
   $('modal-pw-confirm').value = '';
   $('modal-pw-error').textContent = '';
   $('modal-confirm-word').value = '';
   $('modal-confirm-word-error').textContent = '';
+  if (lastFocus && lastFocus.focus) lastFocus.focus();
+  lastFocus = null;
   if (modalResolve) modalResolve(value);
+}
+function openModal() {
+  lastFocus = document.activeElement;
+  $('modal').classList.remove('hidden');
+  const f = focusables();
+  if (f.length) f[0].focus();
 }
 function hideModalExtras() {
   $('modal-pw-wrap').classList.add('hidden');
@@ -260,7 +613,7 @@ function confirmModal(title, text, needName) {
   $('modal-confirm-name-wrap').classList.toggle('hidden', !needName);
   hideModalExtras();
   $('modal-confirm-name').value = '';
-  $('modal').classList.remove('hidden');
+  openModal();
   return new Promise((resolve) => { modalResolve = resolve; });
 }
 // Password-change dialog. The confirm field is client-side only; the new
@@ -276,7 +629,7 @@ function passwordModal() {
   $('modal-pw-new').value = '';
   $('modal-pw-confirm').value = '';
   $('modal-pw-error').textContent = '';
-  $('modal').classList.remove('hidden');
+  openModal();
   $('modal-pw-current').focus();
   return new Promise((resolve) => { modalResolve = resolve; });
 }
@@ -289,7 +642,7 @@ function confirmEnableModal() {
   hideModalExtras();
   $('modal-confirm-word-wrap').classList.remove('hidden');
   $('modal-confirm-word').value = '';
-  $('modal').classList.remove('hidden');
+  openModal();
   $('modal-confirm-word').focus();
   return new Promise((resolve) => { modalResolve = resolve; });
 }
@@ -335,10 +688,7 @@ async function onAppButton(id, act) {
   // not from the stale saved scan.
   try {
     await refreshOverviewAndMerge();
-    const d = await api('/api/audit?limit=50');
-    document.querySelector('#audit tbody').innerHTML = d.entries.map((x) =>
-      `<tr><td>${esc(x.t)}</td><td>${esc(x.user || '')}</td><td>${esc(x.app || '')}</td>
-       <td>${esc(x.action)}</td><td>${esc(x.result)}${x.error ? ' · ' + esc(x.error) : ''}</td><td>${esc(x.ip || '')}</td></tr>`).join('');
+    await refreshAll();
   } catch (e) { await authLost(e); }
 }
 
@@ -364,6 +714,11 @@ $('modal-ok').addEventListener('click', () => {
   closeModal($('modal-confirm-name').value);
 });
 $('modal-cancel').addEventListener('click', () => closeModal(null));
+// Escape cancels, Tab is trapped inside the dialog while it is open.
+$('modal').addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { e.preventDefault(); closeModal(null); return; }
+  trapTab(e);
+});
 
 $('log-out').addEventListener('click', () => { state.logWhich = 'out'; showLogs(); });
 $('log-err').addEventListener('click', () => { state.logWhich = 'err'; showLogs(); });
@@ -390,7 +745,8 @@ $('login-btn').addEventListener('click', async () => {
 for (const id of ['login-user', 'login-pass']) {
   $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') $('login-btn').click(); });
 }
-$('changepw-btn').addEventListener('click', async () => {
+
+async function doChangePassword() {
   const out = await passwordModal();
   if (!out || out.mode !== 'password') return;
   try {
@@ -400,7 +756,8 @@ $('changepw-btn').addEventListener('click', async () => {
   } catch (e) {
     toast(`Password change failed: ${e.message}`, 'err');
   }
-});
+}
+$('changepw-btn').addEventListener('click', doChangePassword);
 
 // Master switch. OFF is one click; ON requires typing ENABLE. After a
 // successful toggle we rescan immediately, because the saved scan advertised
@@ -428,14 +785,62 @@ $('actions-toggle').addEventListener('change', async (e) => {
   if (!out || out.mode !== 'enable') { await refreshMe(); return; }
   await setActionsEnabled(true, 'ENABLE');
 });
+$('settings-toggle-btn').addEventListener('click', async () => {
+  const on = $('actions-toggle').checked;
+  if (on) { await setActionsEnabled(false); return; }
+  const out = await confirmEnableModal();
+  if (!out || out.mode !== 'enable') { await refreshMe(); return; }
+  await setActionsEnabled(true, 'ENABLE');
+});
+$('changepw-btn-2').addEventListener('click', () => doChangePassword());
+$('theme-btn').addEventListener('click', () => {
+  const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  applyTheme(next);
+});
+$('nav-toggle').addEventListener('click', () => {
+  const app = $('app-view');
+  const collapsed = app.classList.toggle('nav-collapsed');
+  $('nav-toggle').setAttribute('aria-expanded', String(!collapsed));
+  try { localStorage.setItem('panel-nav', collapsed ? 'collapsed' : 'open'); } catch (_) { /* ignore */ }
+});
+$('proc-search').addEventListener('input', () => renderProcesses(state.overview));
+$('log-refresh').addEventListener('click', () => showLogs());
+document.querySelectorAll('.nav-item').forEach((b) => {
+  b.addEventListener('click', () => showView(b.dataset.view));
+});
+window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
+// Keyboard: 1-7 jump between views when not typing in a field.
+document.addEventListener('keydown', (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  if (!$('modal').classList.contains('hidden')) return;
+  const n = parseInt(e.key, 10);
+  if (n >= 1 && n <= VIEWS.length) showView(VIEWS[n - 1]);
+});
 $('logout-btn').addEventListener('click', async () => {
   await api('/api/auth/logout', { method: 'POST', body: '{}' });
   await refreshMe();
 });
+  // restore persisted preferences before first paint of data
+  try {
+    const savedTheme = localStorage.getItem('panel-theme');
+    if (savedTheme) applyTheme(savedTheme);
+    if (localStorage.getItem('panel-nav') === 'collapsed') $('app-view').classList.add('nav-collapsed');
+  } catch (_) { /* ignore */ }
+  showView(location.hash.slice(1) || 'dashboard');
+  // Pause polling on a hidden tab; resume (and catch up) when it returns.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && state.live && state.me) refreshAll();
+  });
   setInterval(() => { if (state.live && state.me && !document.hidden) refreshAll(); }, 10000);
   refreshMe();
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { actionButtons, isLiveStatus, esc, renderScan, state };
+  module.exports = {
+    actionButtons, isLiveStatus, esc, renderScan, state,
+    renderHealth, renderServerCard, renderProcesses, renderPorts,
+    renderAlerts, renderPolicyInfo, showView, VIEWS, pushTrend, drawChart, fmtBytes
+  };
 }

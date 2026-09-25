@@ -1,0 +1,2013 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MAXSOLBIZ / VPS Control — static preview</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'unsafe-inline' data:; connect-src 'none'; img-src data:; form-action 'none'; base-uri 'none'">
+<style>
+/* ============================================================
+   MAXSOLBIZ / VPS CONTROL — design system
+   Stage 2. Tokens first, then primitives, then layout.
+   No external fonts/assets: the panel CSP is default-src 'self'.
+   ============================================================ */
+
+/* ---------- 1. tokens ---------- */
+:root {
+  color-scheme: dark;
+
+  /* spacing scale — 4px base, no ad-hoc values below this */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px;
+
+  /* radii */
+  --r-sm: 4px; --r-md: 6px; --r-lg: 10px; --r-full: 999px;
+
+  /* type scale */
+  --fs-xs: 11px; --fs-sm: 12px; --fs-base: 13px;
+  --fs-md: 15px; --fs-lg: 18px; --fs-xl: 22px;
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+
+  /* semantic colour (dark default) */
+  --bg: #0d1117;
+  --bg-raised: #151b23;
+  --bg-sunken: #090c10;
+  --surface: #111820;
+  --border: #232c38;
+  --border-strong: #33404f;
+  --text: #e6edf3;
+  --text-muted: #8b98a9;
+  --text-dim: #6b7684;
+
+  --primary: #3b82f6;
+  --primary-hover: #2f6fd8;
+  --primary-soft: rgba(59, 130, 246, .14);
+  --on-primary: #ffffff;
+
+  --success: #3fb950;
+  --success-soft: rgba(63, 185, 80, .14);
+  --warning: #d29922;
+  --warning-soft: rgba(210, 153, 34, .16);
+  --critical: #f85149;
+  --critical-soft: rgba(248, 81, 73, .14);
+  --info: #58a6ff;
+  --info-soft: rgba(88, 166, 255, .14);
+  --neutral: #6b7684;
+  --neutral-soft: rgba(139, 152, 169, .12);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, .35);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, .45);
+
+  --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--primary);
+  --sidebar-w: 216px;
+  --sidebar-w-collapsed: 60px;
+  --header-h: 56px;
+  --tap: 40px;
+  --dur: 140ms;
+}
+
+/* light theme */
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f6f9;
+  --bg-raised: #ffffff;
+  --bg-sunken: #eaeef3;
+  --surface: #ffffff;
+  --border: #d8dee6;
+  --border-strong: #b9c2cd;
+  --text: #16202b;
+  --text-muted: #5a6675;
+  --text-dim: #7b8794;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-soft: rgba(37, 99, 235, .10);
+  --success: #1a7f37;
+  --success-soft: rgba(26, 127, 55, .10);
+  --warning: #9a6700;
+  --warning-soft: rgba(154, 103, 0, .12);
+  --critical: #cf222e;
+  --critical-soft: rgba(207, 34, 46, .10);
+  --info: #0969da;
+  --info-soft: rgba(9, 105, 218, .10);
+  --neutral: #6b7684;
+  --neutral-soft: rgba(90, 102, 117, .10);
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, .06);
+  --shadow-md: 0 4px 12px rgba(16, 24, 40, .08);
+  --shadow-lg: 0 12px 32px rgba(16, 24, 40, .12);
+}
+
+/* ---------- 2. reset / base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  line-height: 1.5;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  /* belt-and-braces against the §28 overflow class of bug */
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4 { margin: 0; font-weight: 600; line-height: 1.25; }
+h1 { font-size: var(--fs-md); letter-spacing: .02em; }
+h2 { font-size: var(--fs-md); }
+h3 { font-size: var(--fs-base); }
+p { margin: 0; }
+
+a { color: var(--info); }
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+  border-radius: var(--r-sm);
+}
+
+.hidden { display: none !important; }
+.muted { color: var(--text-muted); font-size: var(--fs-sm); font-weight: 400; }
+.err { color: var(--critical); }
+.warn { color: var(--warning); }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.nowrap { white-space: nowrap; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ---------- 3. buttons ---------- */
+button {
+  font: inherit;
+  font-size: var(--fs-base);
+  font-weight: 500;
+  color: var(--on-primary);
+  background: var(--primary);
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  padding: var(--sp-2) var(--sp-3);
+  min-height: 32px;
+  cursor: pointer;
+  transition: background var(--dur) ease, border-color var(--dur) ease, opacity var(--dur) ease;
+  white-space: nowrap;
+}
+button:hover:not(:disabled) { background: var(--primary-hover); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.danger { background: var(--critical); color: #fff; }
+button.danger:hover:not(:disabled) { background: #d43a33; }
+button.ghost { background: transparent; color: var(--text); border-color: var(--border-strong); }
+button.ghost:hover:not(:disabled) { background: var(--neutral-soft); }
+button.subtle { background: var(--neutral-soft); color: var(--text); }
+button.subtle:hover:not(:disabled) { background: var(--border); }
+button.icon { padding: var(--sp-2); min-width: 32px; }
+button.sm { font-size: var(--fs-sm); padding: var(--sp-1) var(--sp-2); min-height: 26px; }
+
+/* switch */
+#actions-toggle-wrap {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  min-height: 32px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-full);
+  cursor: pointer;
+  user-select: none;
+  background: var(--surface);
+}
+#actions-toggle-wrap:has(#actions-toggle:checked) {
+  border-color: var(--warning); background: var(--warning-soft);
+}
+#actions-toggle { accent-color: var(--warning); width: 15px; height: 15px; cursor: pointer; }
+#actions-toggle-label { font-size: var(--fs-sm); font-weight: 500; white-space: nowrap; }
+#actions-toggle-wrap:has(#actions-toggle:checked) #actions-toggle-label { color: var(--warning); }
+
+/* ---------- 4. inputs ---------- */
+input[type="text"], input[type="password"], input:not([type]), input[type="search"] {
+  font: inherit;
+  font-size: var(--fs-base);
+  color: var(--text);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  padding: var(--sp-2) var(--sp-3);
+  min-height: 32px;
+  width: 100%;
+  max-width: 100%;
+}
+input::placeholder { color: var(--text-dim); }
+input:focus-visible { border-color: var(--primary); }
+label { font-size: var(--fs-sm); color: var(--text-muted); }
+
+/* ---------- 5. shell ---------- */
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-rows: var(--header-h) 1fr;
+  grid-template-areas: "brand header" "nav main";
+  min-height: 100vh;
+}
+.app.nav-collapsed { grid-template-columns: var(--sidebar-w-collapsed) 1fr; }
+
+/* brand block occupies the sidebar's first row */
+.brand {
+  grid-area: brand;
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: 0 var(--sp-4);
+  background: var(--bg-raised);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+.brand-mark {
+  width: 26px; height: 26px; flex: 0 0 26px;
+  display: grid; place-items: center;
+  border-radius: var(--r-md);
+  background: var(--primary); color: #fff;
+  font-size: var(--fs-xs); font-weight: 700; letter-spacing: .04em;
+}
+.brand-text { min-width: 0; }
+.brand-name {
+  font-size: var(--fs-sm); font-weight: 700; letter-spacing: .06em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.brand-sub { font-size: var(--fs-xs); color: var(--text-dim); letter-spacing: .08em; white-space: nowrap; }
+.app.nav-collapsed .brand-text { display: none; }
+
+/* top header */
+.topbar {
+  grid-area: header;
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: 0 var(--sp-4);
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+.topbar-left { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+.topbar-right {
+  display: flex; align-items: center; gap: var(--sp-2);
+  margin-left: auto; flex-wrap: nowrap;
+}
+.nav-toggle { display: none; }
+#session {
+  font-size: var(--fs-sm); color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 34ch;
+}
+
+/* server pill */
+.server-pill {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+.server-pill .name { color: var(--text); font-weight: 500; }
+.server-pill .sep { color: var(--text-dim); }
+
+/* sidebar nav */
+.nav {
+  grid-area: nav;
+  background: var(--bg-raised);
+  border-right: 1px solid var(--border);
+  padding: var(--sp-3) var(--sp-2);
+  display: flex; flex-direction: column; gap: 2px;
+  overflow-y: auto; overflow-x: hidden;
+}
+.nav-item {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  min-height: var(--tap);
+  border-radius: var(--r-md);
+  color: var(--text-muted);
+  font-size: var(--fs-base); font-weight: 500;
+  cursor: pointer; user-select: none;
+  border: 0; background: transparent; width: 100%; text-align: left;
+  white-space: nowrap; overflow: hidden;
+}
+.nav-item:hover { background: var(--neutral-soft); color: var(--text); }
+.nav-item.on { background: var(--primary-soft); color: var(--primary); }
+.nav-item .ico { flex: 0 0 20px; width: 20px; text-align: center; font-size: var(--fs-md); }
+.nav-item .lbl { overflow: hidden; text-overflow: ellipsis; }
+.nav-item .count {
+  margin-left: auto; font-size: var(--fs-xs); font-variant-numeric: tabular-nums;
+  color: var(--text-dim); background: var(--neutral-soft);
+  border-radius: var(--r-full); padding: 1px var(--sp-2);
+}
+.app.nav-collapsed .nav-item { justify-content: center; padding: var(--sp-2); }
+.app.nav-collapsed .nav-item .lbl,
+.app.nav-collapsed .nav-item .count { display: none; }
+
+/* main */
+.main {
+  grid-area: main;
+  padding: var(--sp-5);
+  min-width: 0; /* lets wide tables scroll instead of stretching the grid */
+  overflow-x: hidden;
+}
+.view { display: none; }
+.view.on { display: block; }
+
+/* ---------- 6. cards / panels ---------- */
+.card {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: var(--sp-4);
+  overflow: hidden;
+}
+.card-head {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-wrap: wrap;
+}
+.card-head h2 { font-size: var(--fs-base); letter-spacing: .02em; }
+.card-head .spacer { margin-left: auto; }
+.card-body { padding: var(--sp-4); }
+.card-body.tight { padding: var(--sp-3); }
+
+/* metric cards */
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--sp-3);
+}
+.metric {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-3) var(--sp-4);
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+}
+.metric-label {
+  font-size: var(--fs-xs); font-weight: 600; letter-spacing: .07em;
+  color: var(--text-dim); text-transform: uppercase;
+  display: flex; align-items: center; gap: var(--sp-2);
+}
+.metric-value {
+  font-size: var(--fs-xl); font-weight: 650; margin-top: var(--sp-1);
+  font-variant-numeric: tabular-nums; letter-spacing: -.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.metric-value .unit { font-size: var(--fs-base); font-weight: 500; color: var(--text-muted); margin-left: 2px; }
+.metric-sub {
+  font-size: var(--fs-sm); color: var(--text-muted); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.meter { height: 4px; background: var(--bg-sunken); border-radius: var(--r-full); margin-top: var(--sp-2); overflow: hidden; }
+.meter > i { display: block; height: 100%; background: var(--primary); border-radius: var(--r-full); transition: width var(--dur) ease; }
+.meter.ok > i { background: var(--success); }
+.meter.warn > i { background: var(--warning); }
+.meter.crit > i { background: var(--critical); }
+
+/* CSP forbids inline styles, so meter/bar widths are 5% step utilities. */
+.w0 { width: 0; }   .w5 { width: 5%; }   .w10 { width: 10%; } .w15 { width: 15%; }
+.w20 { width: 20%; } .w25 { width: 25%; } .w30 { width: 30%; } .w35 { width: 35%; }
+.w40 { width: 40%; } .w45 { width: 45%; } .w50 { width: 50%; } .w55 { width: 55%; }
+.w60 { width: 60%; } .w65 { width: 65%; } .w70 { width: 70%; } .w75 { width: 75%; }
+.w80 { width: 80%; } .w85 { width: 85%; } .w90 { width: 90%; } .w95 { width: 95%; }
+.w100 { width: 100%; }
+
+/* ---------- 7. status (colour + icon + text, never colour alone) ---------- */
+.dot { font-weight: 700; font-size: var(--fs-base); }
+.dot.running, .dot.unmanaged-running { color: var(--success); }
+.dot.stopped, .dot.unmanaged-stopped { color: var(--text-dim); }
+.dot.errored, .dot.missing { color: var(--critical); }
+.dot.launching, .dot.restarting { color: var(--warning); }
+
+.status {
+  display: inline-flex; align-items: center; gap: var(--sp-1);
+  font-size: var(--fs-sm); font-weight: 500; white-space: nowrap;
+}
+.status .glyph { font-size: var(--fs-xs); line-height: 1; }
+.status.running { color: var(--success); }
+.status.stopped { color: var(--text-muted); }
+.status.errored, .status.missing { color: var(--critical); }
+.status.launching, .status.restarting { color: var(--warning); }
+
+.tag, .badge {
+  display: inline-flex; align-items: center;
+  font-size: var(--fs-xs); font-weight: 600; letter-spacing: .03em;
+  padding: 2px var(--sp-2); border-radius: var(--r-full);
+  border: 1px solid transparent; white-space: nowrap;
+}
+.tag.production { background: var(--info-soft); color: var(--info); border-color: rgba(88,166,255,.3); }
+.tag.utility { background: var(--neutral-soft); color: var(--text-muted); }
+.tag.test { background: rgba(163,113,247,.14); color: #a371f7; border-color: rgba(163,113,247,.3); }
+.tag.unclassified { background: var(--neutral-soft); color: var(--text-dim); }
+.badge { background: var(--warning-soft); color: var(--warning); margin-left: var(--sp-1); }
+.badge.crit { background: var(--critical-soft); color: var(--critical); }
+.badge.ok { background: var(--success-soft); color: var(--success); }
+
+/* chips */
+.chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.chips span {
+  display: inline-flex; align-items: center;
+  background: var(--neutral-soft); border: 1px solid var(--border);
+  border-radius: var(--r-full); padding: 2px var(--sp-3);
+  font-size: var(--fs-sm); color: var(--text-muted);
+}
+.chips .warn { background: var(--warning-soft); color: var(--warning); border-color: rgba(210,153,34,.3); }
+
+/* ---------- 8. tables ---------- */
+.table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { width: 100%; border-collapse: collapse; font-size: var(--fs-base); }
+th, td {
+  text-align: left; padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+th {
+  font-size: var(--fs-xs); font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--text-dim);
+  background: var(--surface); position: sticky; top: 0; z-index: 1;
+}
+tbody tr:hover { background: var(--neutral-soft); }
+tbody tr:last-child td { border-bottom: 0; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); }
+td.wrap { white-space: normal; }
+td.actions { text-align: right; }
+.app-name { font-weight: 550; }
+.app-sub { font-size: var(--fs-xs); color: var(--text-dim); }
+
+/* ---------- 9. grids / lists ---------- */
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--sp-3); }
+.grid div {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-md); padding: var(--sp-3); min-width: 0;
+}
+.grid .k { font-size: var(--fs-xs); color: var(--text-dim); text-transform: uppercase; letter-spacing: .06em; }
+.grid .v { font-size: var(--fs-base); margin-top: 2px; overflow-wrap: anywhere; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--sp-4); }
+
+.rank { list-style: none; margin: 0; padding: 0; }
+.rank li {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-2) 0; border-bottom: 1px solid var(--border);
+  cursor: pointer; min-width: 0;
+}
+.rank li:last-child { border-bottom: 0; }
+.rank li:hover .rank-name { color: var(--primary); }
+.rank .pos { font-size: var(--fs-xs); color: var(--text-dim); width: 16px; flex: 0 0 16px; font-variant-numeric: tabular-nums; }
+.rank .rank-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank .rank-val { font-family: var(--mono); font-size: var(--fs-sm); color: var(--text-muted); white-space: nowrap; }
+.rank .bar { width: 64px; height: 4px; background: var(--bg-sunken); border-radius: var(--r-full); overflow: hidden; flex: 0 0 64px; }
+.rank .bar > i { display: block; height: 100%; background: var(--primary); }
+
+/* alerts */
+.alert-item {
+  display: flex; align-items: flex-start; gap: var(--sp-3);
+  padding: var(--sp-3) 0; border-bottom: 1px solid var(--border);
+}
+.alert-item:last-child { border-bottom: 0; }
+.alert-item .ico { flex: 0 0 18px; font-size: var(--fs-md); line-height: 1.3; }
+.alert-item .txt { min-width: 0; }
+.alert-item .ttl { font-size: var(--fs-base); }
+.alert-item .sub { font-size: var(--fs-sm); color: var(--text-muted); }
+.alert-item.warn .ico { color: var(--warning); }
+.alert-item.crit .ico { color: var(--critical); }
+.alert-item.info .ico { color: var(--info); }
+
+/* ---------- 10. logs ---------- */
+pre {
+  background: var(--bg-sunken); border: 1px solid var(--border);
+  padding: var(--sp-3); border-radius: var(--r-md);
+  max-height: 60vh; overflow: auto;
+  font-family: var(--mono); font-size: var(--fs-sm);
+  line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere;
+  margin: 0; color: var(--text);
+}
+
+/* ---------- 11. modal ---------- */
+#modal {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(0, 0, 0, .62);
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--sp-4);
+}
+.modal-body {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--sp-5);
+  width: 100%;
+  max-width: 420px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+.modal-body h3 { font-size: var(--fs-md); margin-bottom: var(--sp-2); }
+.modal-body p { font-size: var(--fs-sm); color: var(--text-muted); margin-bottom: var(--sp-3); }
+.modal-body label { display: block; margin: var(--sp-3) 0 var(--sp-1); }
+#modal-ok, #modal-cancel { margin-top: var(--sp-4); }
+#modal-ok { margin-right: var(--sp-2); }
+
+/* ---------- 12. toasts ---------- */
+#toasts {
+  position: fixed; bottom: var(--sp-4); right: var(--sp-4); z-index: 60;
+  display: flex; flex-direction: column; gap: var(--sp-2);
+  max-width: min(360px, calc(100vw - 32px));
+}
+.toast {
+  background: var(--bg-raised); border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--neutral);
+  border-radius: var(--r-md); box-shadow: var(--shadow-md);
+  padding: var(--sp-3) var(--sp-4); font-size: var(--fs-sm);
+  animation: toast-in var(--dur) ease;
+}
+.toast.ok { border-left-color: var(--success); }
+.toast.fail, .toast.err { border-left-color: var(--critical); }
+.toast.warn { border-left-color: var(--warning); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ---------- 13. login ---------- */
+#login-view { max-width: 360px; margin: var(--sp-10) auto; }
+#login-view h2 { margin-bottom: var(--sp-4); }
+#login-view input { margin-bottom: var(--sp-3); }
+#login-btn { width: 100%; min-height: var(--tap); }
+#login-err { margin-top: var(--sp-3); font-size: var(--fs-sm); }
+
+/* ---------- 14. filters ---------- */
+.filters { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+.filters #search { flex: 1 1 200px; min-width: 0; }
+.filters button { background: transparent; color: var(--text-muted); border-color: var(--border); }
+.filters button:hover { background: var(--neutral-soft); color: var(--text); }
+.filters button.on { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+
+/* ---------- 15. app cards (mobile) ---------- */
+.app-cards { display: none; }
+.app-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: var(--sp-3); margin-bottom: var(--sp-3);
+}
+.app-card-top { display: flex; align-items: flex-start; gap: var(--sp-2); }
+.app-card-top .nm { flex: 1; min-width: 0; }
+.app-card-name { font-weight: 600; overflow-wrap: anywhere; }
+.app-card-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-2);
+  margin: var(--sp-3) 0; padding: var(--sp-2) 0;
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
+.app-card-stats .k { font-size: var(--fs-xs); color: var(--text-dim); }
+.app-card-stats .v { font-family: var(--mono); font-size: var(--fs-sm); }
+.app-card-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+.app-card-actions button { flex: 1 1 auto; min-height: var(--tap); }
+
+/* ---------- 16. skeleton / empty / error ---------- */
+.skel { background: var(--neutral-soft); border-radius: var(--r-sm); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: .5; } 50% { opacity: .85; } }
+.empty, .error-state {
+  padding: var(--sp-8) var(--sp-4); text-align: center;
+  color: var(--text-muted); font-size: var(--fs-sm);
+}
+.empty .big { font-size: var(--fs-lg); margin-bottom: var(--sp-2); color: var(--text-dim); }
+.error-state { color: var(--critical); }
+.error-state button { margin-top: var(--sp-3); }
+
+/* ---------- 17. charts (hand-rolled SVG, no library) ---------- */
+.chart { width: 100%; height: 56px; display: block; overflow: visible; }
+.chart .grid-line { stroke: var(--border); stroke-width: 1; }
+.chart .area { fill: var(--primary-soft); }
+.chart .line { fill: none; stroke: var(--primary); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.chart.warn .line { stroke: var(--warning); }
+.chart.warn .area { fill: var(--warning-soft); }
+.chart.crit .line { stroke: var(--critical); }
+.chart.crit .area { fill: var(--critical-soft); }
+
+/* ---------- 16b. view scaffolding ---------- */
+.view-head {
+  display: flex; align-items: center; gap: var(--sp-3);
+  margin-bottom: var(--sp-3); flex-wrap: wrap;
+}
+.view-head h2 { font-size: var(--fs-lg); letter-spacing: -.01em; }
+.view-head .spacer { margin-left: auto; }
+.card-head-actions { display: flex; align-items: center; gap: var(--sp-2); margin-left: auto; flex-wrap: wrap; }
+.live-toggle {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  font-size: var(--fs-sm); color: var(--text-muted); cursor: pointer;
+  padding: var(--sp-1) var(--sp-2); border-radius: var(--r-md);
+  min-height: 32px;
+}
+.live-toggle input { width: 14px; height: 14px; accent-color: var(--primary); }
+.mini-input { max-width: 220px; }
+.note { margin-top: var(--sp-2); font-size: var(--fs-sm); }
+
+.banner {
+  padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-4);
+  border-radius: var(--r-md); font-size: var(--fs-sm);
+  background: var(--warning-soft); color: var(--warning);
+  border: 1px solid rgba(210, 153, 34, .35);
+}
+.banner.crit { background: var(--critical-soft); color: var(--critical); border-color: rgba(248, 81, 73, .35); }
+
+.login-fields { margin-top: var(--sp-4); }
+.login-fields label { display: block; margin: var(--sp-3) 0 var(--sp-1); }
+
+.setting-row {
+  display: flex; align-items: center; gap: var(--sp-3);
+  margin-top: var(--sp-4); flex-wrap: wrap;
+}
+.setting-row .status { font-size: var(--fs-base); }
+
+/* trend charts */
+.trend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-4); }
+.trend { min-width: 0; }
+.trend-label {
+  font-size: var(--fs-xs); font-weight: 600; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--text-dim); margin-bottom: var(--sp-2);
+}
+.trend-val {
+  font-family: var(--mono); font-size: var(--fs-sm);
+  color: var(--text-muted); margin-top: var(--sp-1);
+}
+
+/* ---------- 18. responsive ---------- */
+@media (max-width: 1024px) {
+  .app { grid-template-columns: var(--sidebar-w-collapsed) 1fr; }
+  .app .nav-item { justify-content: center; padding: var(--sp-2); }
+  .app .nav-item .lbl, .app .nav-item .count { display: none; }
+  .app .brand-text { display: none; }
+  .nav-toggle { display: inline-flex; }
+  .main { padding: var(--sp-4); }
+  #session { display: none; }
+}
+
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; grid-template-areas: "brand" "header" "nav" "main"; }
+  .nav {
+    flex-direction: row; overflow-x: auto; padding: var(--sp-2);
+    border-right: 0; border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 20;
+  }
+  .nav-item { flex: 0 0 auto; width: auto; }
+  .app .nav-item .lbl { display: inline; }
+  .topbar { padding: 0 var(--sp-3); }
+  .main { padding: var(--sp-3); }
+}
+
+@media (max-width: 640px) {
+  .table-desktop { display: none; }
+  .app-cards { display: block; }
+  .card-head { padding: var(--sp-3); }
+  .card-body { padding: var(--sp-3); }
+  .metrics { grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
+  .metric-value { font-size: var(--fs-lg); }
+  #changepw-btn { display: none; }
+  .server-pill .sep, .server-pill .extra { display: none; }
+  .modal-body { padding: var(--sp-4); }
+  #toasts { left: var(--sp-3); right: var(--sp-3); max-width: none; }
+}
+
+/* touch targets on coarse pointers */
+@media (pointer: coarse) {
+  button, .nav-item, #actions-toggle-wrap { min-height: var(--tap); }
+  button.icon, button.sm { min-height: var(--tap); min-width: var(--tap); }
+  th, td { padding: var(--sp-3); }
+}
+
+/* ---------- 19. motion / print ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+@media print {
+  .nav, .topbar, #toasts, #modal { display: none !important; }
+  body { background: #fff; color: #000; }
+}
+
+</style>
+</head>
+<body>
+
+
+<!-- ===================== LOGIN ===================== -->
+<section id="login-view" class="card hidden" aria-labelledby="login-h">
+  <h2 id="login-h">Sign in</h2>
+  <p class="muted">MAXSOLBIZ VPS Control</p>
+  <div class="login-fields">
+    <label for="login-user">Username</label>
+    <input id="login-user" placeholder="admin" autocomplete="username" autocapitalize="none" spellcheck="false">
+    <label for="login-pass">Password</label>
+    <input id="login-pass" type="password" placeholder="••••••••••••" autocomplete="current-password">
+    <button id="login-btn">Sign in</button>
+    <p id="login-err" class="err" role="alert"></p>
+  </div>
+</section>
+
+<!-- ===================== APP SHELL ===================== -->
+<div id="app-view" class="app hidden">
+
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">MX</div>
+    <div class="brand-text">
+      <div class="brand-name">MAXSOLBIZ</div>
+      <div class="brand-sub">VPS CONTROL</div>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <button id="nav-toggle" class="icon ghost nav-toggle" aria-label="Toggle navigation" aria-expanded="true">☰</button>
+    <div class="topbar-left">
+      <div class="server-pill" id="server-pill">
+        <span class="status running" id="server-status"><span class="glyph" aria-hidden="true">●</span><span>online</span></span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span class="name">Hetzner VPS</span>
+        <span class="sep extra" aria-hidden="true">·</span>
+        <span class="muted extra" id="server-quick">—</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span id="session"></span>
+      <label id="actions-toggle-wrap" class="hidden" title="Master switch: allows starting and stopping apps">
+        <input type="checkbox" id="actions-toggle">
+        <span id="actions-toggle-label">actions disabled</span>
+      </label>
+      <button id="theme-btn" class="icon ghost" aria-label="Toggle colour theme" title="Toggle theme">◐</button>
+      <button id="changepw-btn" class="ghost hidden">Change password</button>
+      <button id="logout-btn" class="ghost hidden">Sign out</button>
+    </div>
+  </header>
+
+  <nav class="nav" id="nav" aria-label="Sections">
+    <button class="nav-item on" data-view="dashboard" aria-current="page"><span class="ico" aria-hidden="true">◈</span><span class="lbl">Dashboard</span></button>
+    <button class="nav-item" data-view="applications"><span class="ico" aria-hidden="true">▤</span><span class="lbl">Applications</span><span class="count" id="nav-count-apps">0</span></button>
+    <button class="nav-item" data-view="processes"><span class="ico" aria-hidden="true">⚙</span><span class="lbl">Processes</span><span class="count" id="nav-count-procs">0</span></button>
+    <button class="nav-item" data-view="ports"><span class="ico" aria-hidden="true">⇄</span><span class="lbl">Ports</span><span class="count" id="nav-count-ports">0</span></button>
+    <button class="nav-item" data-view="logs"><span class="ico" aria-hidden="true">≡</span><span class="lbl">Logs</span></button>
+    <button class="nav-item" data-view="audit"><span class="ico" aria-hidden="true">◷</span><span class="lbl">Audit</span></button>
+    <button class="nav-item" data-view="settings"><span class="ico" aria-hidden="true">⚑</span><span class="lbl">Settings</span></button>
+  </nav>
+
+  <main class="main" id="main">
+
+    <div id="policy-banner" class="banner hidden" role="status"></div>
+
+    <!-- ---------- DASHBOARD ---------- -->
+    <section class="view on" id="view-dashboard" aria-labelledby="h-dash">
+      <div class="view-head">
+        <h2 id="h-dash">Server health</h2>
+        <div class="card-head-actions">
+          <button id="scan-btn">Scan VPS</button>
+          <button id="refresh-btn" class="icon ghost" title="Refresh now" aria-label="Refresh now">⟳</button>
+          <label class="live-toggle"><input type="checkbox" id="live-toggle" checked> live</label>
+        </div>
+      </div>
+      <p id="scan-meta" class="muted"></p>
+      <p id="scan-diff" class="muted"></p>
+      <p id="scan-warn" class="warn"></p>
+
+      <div class="metrics" id="health-metrics" aria-live="polite">
+        <div class="metric"><div class="metric-label">&nbsp;</div><div class="metric-value">&mdash;</div></div>
+        <div class="metric"><div class="metric-label">&nbsp;</div><div class="metric-value">&mdash;</div></div>
+        <div class="metric"><div class="metric-label">&nbsp;</div><div class="metric-value">&mdash;</div></div>
+        <div class="metric"><div class="metric-label">&nbsp;</div><div class="metric-value">&mdash;</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Resource trend</h2>
+          <span class="spacer"></span>
+          <span class="muted" id="trend-note">collecting since page load</span>
+        </div>
+        <div class="card-body">
+          <div class="trend-grid">
+            <div class="trend"><div class="trend-label">CPU</div><svg class="chart" id="chart-cpu" viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true"></svg><div class="trend-val" id="val-cpu">—</div></div>
+            <div class="trend"><div class="trend-label">Memory</div><svg class="chart" id="chart-mem" viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true"></svg><div class="trend-val" id="val-mem">—</div></div>
+            <div class="trend"><div class="trend-label">Load (1m)</div><svg class="chart" id="chart-load" viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true"></svg><div class="trend-val" id="val-load">—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Attention</h2><span class="spacer"></span><span class="muted" id="alert-count"></span></div>
+        <div class="card-body" id="alerts"><div class="empty"><div class="big">—</div>Loading…</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Resource hotspots</h2></div>
+        <div class="card-body cols">
+          <div><h3>Top CPU</h3><ol class="rank" id="top-cpu"></ol></div>
+          <div><h3>Top memory</h3><ol class="rank" id="top-ram"></ol></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Server detail</h2></div>
+        <div class="card-body"><div id="server" class="grid"></div></div>
+      </div>
+    </section>
+
+    <!-- ---------- APPLICATIONS ---------- -->
+    <section class="view" id="view-applications" aria-labelledby="h-apps">
+      <div class="view-head"><h2 id="h-apps">Applications</h2></div>
+      <div class="card">
+        <div class="card-head">
+          <div class="filters">
+            <input id="search" placeholder="Search name, domain, port…" aria-label="Search applications">
+            <button data-f="all" class="on">All</button>
+            <button data-f="production">Production</button>
+            <button data-f="test">Test</button>
+            <button data-f="utility">Utility</button>
+            <button data-f="unclassified">Unclassified</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="chips" class="chips"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Managed applications</h2><span class="spacer"></span><span class="muted">PM2</span></div>
+        <div class="table-wrap table-desktop"><table id="apps-pm2"><thead><tr>
+          <th>Name</th><th>Category</th><th>Status</th><th class="num">PID</th><th class="num">CPU</th><th class="num">RAM</th>
+          <th>Uptime</th><th>Ports</th><th class="num">↺</th><th>Actions</th>
+        </tr></thead><tbody></tbody></table></div>
+        <div id="apps-pm2-cards" class="app-cards card-body"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Web sites</h2></div>
+        <div class="table-wrap table-desktop"><table id="apps-web"><thead><tr>
+          <th>Name</th><th>Status</th><th>Domains</th><th>Document root</th>
+        </tr></thead><tbody></tbody></table></div>
+        <div id="apps-web-empty" class="empty hidden"><div class="big">No web sites</div>No Apache document-root sites discovered.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Unmanaged</h2></div>
+        <div class="table-wrap table-desktop"><table id="apps-unmanaged"><thead><tr>
+          <th>Name</th><th>Status</th><th class="num">PID</th><th class="num">CPU</th><th class="num">RAM</th><th>Note</th>
+        </tr></thead><tbody></tbody></table></div>
+        <div id="apps-unmanaged-empty" class="empty hidden"><div class="big">Nothing unmanaged</div>Every running process is accounted for.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Infrastructure</h2></div>
+        <div class="table-wrap table-desktop"><table id="apps-infra"><thead><tr>
+          <th>Unit</th><th>Status</th><th>Detail</th>
+        </tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- ---------- PROCESSES ---------- -->
+    <section class="view" id="view-processes" aria-labelledby="h-procs">
+      <div class="view-head">
+        <h2 id="h-procs">Processes</h2>
+        <span class="spacer"></span>
+        <input id="proc-search" placeholder="Filter processes…" aria-label="Filter processes" class="mini-input">
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>PM2-managed process trees</h2><span class="spacer"></span><span class="muted">read-only</span></div>
+        <div class="table-wrap table-desktop"><table id="procs-table"><thead><tr>
+          <th class="num">PID</th><th>Process</th><th>Status</th><th class="num">CPU</th><th class="num">RSS</th><th>Uptime</th><th class="num">Tree PIDs</th>
+        </tr></thead><tbody></tbody></table></div>
+        <div id="procs-cards" class="app-cards card-body"></div>
+        <div id="procs-empty" class="empty hidden"><div class="big">PM2 unavailable</div>Could not read the PM2 process list.</div>
+      </div>
+      <p class="muted note">This panel can only start/stop applications listed in the policy allow list. Arbitrary process termination is not offered.</p>
+    </section>
+
+    <!-- ---------- PORTS ---------- -->
+    <section class="view" id="view-ports" aria-labelledby="h-ports">
+      <div class="view-head"><h2 id="h-ports">Listening ports</h2></div>
+      <div class="card">
+        <div class="card-head"><h2>TCP listeners</h2><span class="spacer"></span><span class="muted" id="ports-note"></span></div>
+        <div class="table-wrap table-desktop"><table id="ports-table"><thead><tr>
+          <th class="num">Port</th><th>Bind</th><th>Scope</th><th>Application</th><th>Domains</th>
+        </tr></thead><tbody></tbody></table></div>
+        <div id="ports-cards" class="app-cards card-body"></div>
+        <div id="ports-empty" class="empty hidden"><div class="big">No ports discovered</div>Run a scan to discover listening ports.</div>
+      </div>
+    </section>
+
+    <!-- ---------- LOGS ---------- -->
+    <section class="view" id="view-logs" aria-labelledby="h-logs">
+      <div class="view-head"><h2 id="h-logs">Logs</h2><span class="spacer"></span><span class="muted" id="log-app"></span></div>
+      <div class="card">
+        <div class="card-head">
+          <button id="log-out" class="sm">stdout</button>
+          <button id="log-err" class="sm">stderr</button>
+          <span class="spacer"></span>
+          <button id="log-refresh" class="sm ghost">Refresh</button>
+        </div>
+        <div class="card-body tight">
+          <pre id="logs" tabindex="0">Select an application and choose Logs to stream its output here.</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- AUDIT ---------- -->
+    <section class="view" id="view-audit" aria-labelledby="h-audit">
+      <div class="view-head"><h2 id="h-audit">Audit log</h2></div>
+      <div class="card">
+        <div class="table-wrap table-desktop"><table id="audit"><thead><tr>
+          <th>Time</th><th>User</th><th>Application</th><th>Action</th><th>Result</th><th>IP</th>
+        </tr></thead><tbody></tbody></table></div>
+        <div id="audit-empty" class="empty hidden"><div class="big">No audit entries</div>Activity will appear here.</div>
+      </div>
+    </section>
+
+    <!-- ---------- SETTINGS ---------- -->
+    <section class="view" id="view-settings" aria-labelledby="h-set">
+      <div class="view-head"><h2 id="h-set">Settings</h2></div>
+      <div class="card">
+        <div class="card-head"><h2>Actions master switch</h2></div>
+        <div class="card-body">
+          <p class="muted">Controls whether this panel may start or stop applications at all. It does not change which applications are permitted — that is the policy allow list.</p>
+          <div class="setting-row">
+            <span id="setting-switch-state" class="status stopped"><span class="glyph" aria-hidden="true">○</span><span>disabled</span></span>
+            <button id="settings-toggle-btn" class="ghost">Enable actions…</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Password</h2></div>
+        <div class="card-body">
+          <p class="muted">Changes the password for this panel login only. The Apache Basic Auth password in front of the panel is separate and is never managed here.</p>
+          <div class="setting-row"><button id="changepw-btn-2" class="ghost">Change panel password…</button></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Policy</h2></div>
+        <div class="card-body"><div id="policy-info" class="grid"></div></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ===================== MODAL ===================== -->
+<div id="modal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal-body">
+    <h3 id="modal-title"></h3>
+    <p id="modal-text"></p>
+    <div id="modal-confirm-name-wrap" class="hidden">
+      <label for="modal-confirm-name">Type the app name to confirm stop:</label>
+      <input id="modal-confirm-name" placeholder="app name" autocomplete="off">
+    </div>
+    <div id="modal-confirm-word-wrap" class="hidden">
+      <label for="modal-confirm-word">Type <b>ENABLE</b> to confirm:</label>
+      <input id="modal-confirm-word" autocomplete="off">
+      <p id="modal-confirm-word-error" class="warn"></p>
+    </div>
+    <div id="modal-pw-wrap" class="hidden">
+      <label for="modal-pw-current">Current password</label>
+      <input id="modal-pw-current" type="password" autocomplete="current-password">
+      <label for="modal-pw-new">New password (min 12 characters)</label>
+      <input id="modal-pw-new" type="password" autocomplete="new-password">
+      <label for="modal-pw-confirm">Confirm new password</label>
+      <input id="modal-pw-confirm" type="password" autocomplete="new-password">
+      <p id="modal-pw-error" class="warn" role="alert"></p>
+    </div>
+    <button id="modal-ok">Confirm</button>
+    <button id="modal-cancel" class="ghost">Cancel</button>
+  </div>
+</div>
+
+<div id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+<script>
+
+/* ---- offline mock layer: no network, no node, no server ---- */
+window.__PREVIEW__ = {"scan":{"scanned_at":"2026-09-25T12:43:23.587Z","complete":true,"warnings":[],"counts":{"running":11,"stopped":6,"errored":1,"unmanaged":4,"public_binds":4},"drift":{"in_dump_not_running":["ghost-app"],"running_not_in_dump":["new-app","telegram-bot"]},"items":[{"id":"web-pwa","name":"web-pwa","kind":"pm2","status":"running","pids":[100,101,103],"cpu_pct":0.1,"rss_b":141312000,"uptime_s":200000,"restarts":12,"unstable_restarts":0,"ports":[{"port":3000,"bind":"0.0.0.0","public":true}],"domains":["web.example.com"],"cwd":"C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\root\\web-pwa","exec_path":"/usr/bin/npm","indirect":true,"start_blocked":false,"holder_pid":null,"category":"unclassified","notes":"","in_dump":true,"actions":["start","stop","restart"],"logs_enabled":true},{"id":"shop-api","name":"shop-api","kind":"pm2","status":"running","pids":[200],"cpu_pct":0.8,"rss_b":61440000,"uptime_s":150000,"restarts":3,"unstable_restarts":0,"ports":[{"port":3103,"bind":"127.0.0.1","public":false}],"domains":["api.example.com"],"cwd":"C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\root\\api","exec_path":"C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\root\\api/dist/index.js","indirect":false,"start_blocked":false,"holder_pid":null,"category":"unclassified","notes":"","in_dump":true,"actions":["start","stop","restart"],"logs_enabled":true},{"id":"bank-api","name":"bank-api","kind":"pm2","status":"running","pids":[300],"cpu_pct":0.5,"rss_b":46080000,"uptime_s":140000,"restarts":1,"unstable_restarts":0,"ports":[{"port":5000,"bind":"0.0.0.0","public":true}],"domains":[],"cwd":"C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\root\\bank","exec_path":"C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\root/bank/dist/server.js","indirect":false,"start_blocked":false,"holder_pid":null,"category":"unclassified","notes":"","in_dump":true,"actions":["restart"],"logs_enabled":false},{"id":"nightly-purge","name":"nightly-purge","kind":"pm2","status":"stopped","pids":[],"cpu_pct":0,"rss_b":0,"uptime_s":0,"restarts":0,"unstable_restarts":1,"ports":[],"domains":[],"cwd":"C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\root\\nightly","exec_path":"C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\root\\nightly/purge.mjs","indirect":false,"start_blocked":false,"holder_pid":null,"category":"unclassified","notes":"","in_dump":true,"actions":["start","stop","restart"],"logs_enabled":true},{"id":"new-app","name":"new-app","kind":"pm2","status":"running","pids":[400],"cpu_pct":0.3,"rss_b":30720000,"uptime_s":10000,"restarts":0,"unstable_restarts":0,"ports":[],"domains":[],"cwd":"C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\root\\newapp","exec_path":"C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\root\\newapp/index.js","indirect":false,"start_blocked":false,"holder_pid":null,"category":"unclassified","notes":"","in_dump":false,"actions":["restart"],"logs_enabled":true},{"id":"invoice-fe","name":"invoice-fe","kind":"pm2","status":"running","pids":[700],"cpu_pct":0.3,"rss_b":25600000,"uptime_s":90000,"restarts":2,"unstable_restarts":0,"ports":[{"port":3002,"bind":"127.0.0.1","public":false}],"domains":[],"cwd":"C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\root","exec_path":"C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\root\\event-invoice/start-frontend.sh","indirect":true,"start_blocked":false,"holder_pid":null,"category":"unclassified","notes":"","in_dump":true,"actions":["start","stop","restart"],"logs_enabled":true},{"id":"flaky-worker","name":"flaky-worker","kind":"pm2","status":"restarting","pids":[],"cpu_pct":0,"rss_b":0,"uptime_s":0,"restarts":41,"unstable_restarts":3,"ports":[],"domains":[],"cwd":"C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\root\\nightly","exec_path":"C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\root\\nightly/worker.mjs","indirect":false,"start_blocked":false,"holder_pid":null,"category":"unclassified","notes":"","in_dump":true,"actions":["restart"],"logs_enabled":true},{"id":"telegram-bot","name":"telegram-bot","kind":"pm2","status":"running","pids":[800],"cpu_pct":0.4,"rss_b":25600000,"uptime_s":50000,"restarts":0,"unstable_restarts":0,"ports":[],"domains":[],"cwd":"C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\root\\meezan-bank","exec_path":"C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\root/meezan-bank/backend/scripts/telegram-bot.mjs","indirect":false,"start_blocked":false,"holder_pid":null,"category":"unclassified","notes":"","in_dump":false,"actions":[],"logs_enabled":true},{"id":"vps-control-panel","name":"vps-control-panel","kind":"panel","status":"running","pids":[500,501],"cpu_pct":0.2,"rss_b":34816000,"uptime_s":9000,"restarts":0,"unstable_restarts":0,"ports":[],"domains":[],"cwd":"D:\\Dashboard-VPS","exec_path":"D:\\Dashboard-VPS/server.js","indirect":false,"start_blocked":false,"holder_pid":null,"category":"unclassified","notes":"","in_dump":true,"actions":[],"logs_enabled":true},{"id":"site-static-example-com","name":"static.example.com","kind":"website","status":"running","pids":[],"cpu_pct":0,"rss_b":0,"uptime_s":0,"restarts":0,"unstable_restarts":0,"ports":[{"port":80,"bind":"*","public":true},{"port":443,"bind":"*","public":true}],"domains":["static.example.com"],"cwd":"C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\www\\taskbloom\\public","category":"unclassified","notes":"DocumentRoot C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\www\\taskbloom\\public (site-le-ssl.conf, site.conf)","in_dump":false,"actions":[],"logs_enabled":false},{"id":"site-srv-example-com","name":"srv.example.com","kind":"website","status":"running","pids":[],"cpu_pct":0,"rss_b":0,"uptime_s":0,"restarts":0,"unstable_restarts":0,"ports":[{"port":80,"bind":"*","public":true}],"domains":["srv.example.com"],"cwd":"C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\srv","category":"unclassified","notes":"DocumentRoot C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\srv (srv.conf)","in_dump":false,"actions":[],"logs_enabled":false},{"id":"infra-apache2","name":"apache2","kind":"infra","status":"running","pids":[],"cpu_pct":0,"rss_b":0,"uptime_s":0,"restarts":0,"unstable_restarts":0,"ports":[],"domains":[],"cwd":null,"category":"unclassified","notes":"systemctl is-active: active","in_dump":false,"actions":[],"logs_enabled":false},{"id":"infra-postgresql","name":"postgresql","kind":"infra","status":"running","pids":[],"cpu_pct":0,"rss_b":0,"uptime_s":0,"restarts":0,"unstable_restarts":0,"ports":[],"domains":[],"cwd":null,"category":"unclassified","notes":"systemctl is-active: active","in_dump":false,"actions":[],"logs_enabled":false},{"id":"infra-mariadb","name":"mariadb","kind":"infra","status":"stopped","pids":[],"cpu_pct":0,"rss_b":0,"uptime_s":0,"restarts":0,"unstable_restarts":0,"ports":[],"domains":[],"cwd":null,"category":"unclassified","notes":"systemctl is-active: inactive","in_dump":false,"actions":[],"logs_enabled":false},{"id":"infra-redis-server","name":"redis-server","kind":"infra","status":"stopped","pids":[],"cpu_pct":0,"rss_b":0,"uptime_s":0,"restarts":0,"unstable_restarts":0,"ports":[],"domains":[],"cwd":null,"category":"unclassified","notes":"systemctl is-active: inactive","in_dump":false,"actions":[],"logs_enabled":false},{"id":"unmanaged-2d1b3c14","name":"node C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots (pid 600)","kind":"unmanaged","status":"unmanaged-running","pids":[600],"cpu_pct":0,"rss_b":40960000,"uptime_s":50000,"restarts":0,"unstable_restarts":0,"ports":[],"domains":[],"cwd":"C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\opt\\rogue","category":"unclassified","notes":"Running outside PM2. Display-only, never killable from the panel.","in_dump":false,"actions":[],"logs_enabled":false},{"id":"proj-c-users-max-appdata-local-temp-panel-test-crkgkw-roots-root-mono","name":"mono-b (C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\root\\mono)","kind":"unmanaged","status":"unmanaged-stopped","pids":[],"cpu_pct":0,"rss_b":0,"uptime_s":0,"restarts":0,"unstable_restarts":0,"ports":[],"domains":[],"cwd":"C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\root\\mono","category":"unclassified","notes":"Project dir not managed by PM2 (node). Display-only.","in_dump":false,"actions":[],"logs_enabled":false},{"id":"proj-c-users-max-appdata-local-temp-panel-test-crkgkw-roots-opt-rogue","name":"rogue (C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\opt\\rogue)","kind":"unmanaged","status":"unmanaged-stopped","pids":[],"cpu_pct":0,"rss_b":0,"uptime_s":0,"restarts":0,"unstable_restarts":0,"ports":[],"domains":[],"cwd":"C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\opt\\rogue","category":"unclassified","notes":"Project dir not managed by PM2 (node). Display-only.","in_dump":false,"actions":[],"logs_enabled":false},{"id":"proj-c-users-max-appdata-local-temp-panel-test-crkgkw-roots-srv-old-app","name":"old-app (C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\srv\\old-app)","kind":"unmanaged","status":"unmanaged-stopped","pids":[],"cpu_pct":0,"rss_b":0,"uptime_s":0,"restarts":0,"unstable_restarts":0,"ports":[],"domains":[],"cwd":"C:\\Users\\Max\\AppData\\Local\\Temp\\panel-test-crKGKw\\roots\\srv\\old-app","category":"unclassified","notes":"Project dir not managed by PM2 (node). Display-only.","in_dump":false,"actions":[],"logs_enabled":false}]},"overview":{"at":"2026-09-25T12:43:23.830Z","pm2_available":true,"policy_error":null,"system":{"uptime_s":1584000,"load":[0.42,0.51,0.48],"cpus":2,"mem":{"source":"meminfo","total_b":4294967296,"available_b":1435156480,"used_b":2859810816,"use_pct":66.6,"swap_total_b":0,"swap_free_b":0,"swap_used_b":0},"disk":{"total_kb":165139200,"used_kb":129761280,"avail_kb":31111168,"use_pct":"82%"}},"apps":[{"name":"web-pwa","status":"running","pid":100,"pids":[100,101,103],"cpu_pct":0.1,"rss_b":141312000,"uptime_s":200000,"restarts":12,"unstable_restarts":0,"ports":[{"port":3000,"bind":"0.0.0.0","public":true}],"in_tree":3},{"name":"shop-api","status":"running","pid":200,"pids":[200],"cpu_pct":0.8,"rss_b":61440000,"uptime_s":150000,"restarts":3,"unstable_restarts":0,"ports":[{"port":3103,"bind":"127.0.0.1","public":false}],"in_tree":1},{"name":"bank-api","status":"running","pid":300,"pids":[300],"cpu_pct":0.5,"rss_b":46080000,"uptime_s":140000,"restarts":1,"unstable_restarts":0,"ports":[{"port":5000,"bind":"0.0.0.0","public":true}],"in_tree":1},{"name":"nightly-purge","status":"stopped","pid":0,"pids":[],"cpu_pct":0,"rss_b":0,"uptime_s":0,"restarts":0,"unstable_restarts":1,"ports":[],"in_tree":0},{"name":"new-app","status":"running","pid":400,"pids":[400],"cpu_pct":0.3,"rss_b":30720000,"uptime_s":10000,"restarts":0,"unstable_restarts":0,"ports":[],"in_tree":1},{"name":"invoice-fe","status":"running","pid":700,"pids":[700],"cpu_pct":0.3,"rss_b":25600000,"uptime_s":90000,"restarts":2,"unstable_restarts":0,"ports":[{"port":3002,"bind":"127.0.0.1","public":false}],"in_tree":1},{"name":"flaky-worker","status":"restarting","pid":0,"pids":[],"cpu_pct":0,"rss_b":0,"uptime_s":0,"restarts":41,"unstable_restarts":3,"ports":[],"in_tree":0},{"name":"telegram-bot","status":"running","pid":800,"pids":[800],"cpu_pct":0.4,"rss_b":25600000,"uptime_s":50000,"restarts":0,"unstable_restarts":0,"ports":[],"in_tree":1},{"name":"vps-control-panel","status":"running","pid":500,"pids":[500,501],"cpu_pct":0.2,"rss_b":34816000,"uptime_s":9000,"restarts":0,"unstable_restarts":0,"ports":[],"in_tree":2}]},"audit":{"entries":[{"t":"2026-09-25T12:43:23.590Z","user":"admin","app":null,"action":"scan","result":"ok","error":null,"ip":"127.0.0.1"},{"t":"2026-09-25T12:43:23.129Z","user":"admin","app":null,"action":"login","result":"ok","error":null,"ip":"127.0.0.1"}]},"switchOn":false,"theme":"dark"};
+(function () {
+  var S = window.__PREVIEW__;
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  function scanWithActions() {
+    var s = clone(S.scan);
+    s.cached = false;
+    s.items.forEach(function (it) {
+      if (S.switchOn) {
+        it.actions = (it.kind === 'pm2' && it.id !== 'vps-control-panel')
+          ? ['start', 'stop', 'restart'] : [];
+      } else {
+        it.actions = [];
+      }
+    });
+    return s;
+  }
+  function json(body, status) {
+    status = status || 200;
+    return Promise.resolve({
+      ok: status < 400, status: status,
+      json: function () { return Promise.resolve(body); },
+      text: function () { return Promise.resolve(JSON.stringify(body)); }
+    });
+  }
+  var auditLog = [];
+  window.fetch = function (url, opts) {
+    var u = String(url);
+    opts = opts || {};
+    var body = {};
+    if (opts.body) { try { body = JSON.parse(opts.body); } catch (e) { /* ignore */ } }
+    if (u.indexOf('/api/me') === 0) {
+      return json({ user: { username: 'admin', role: 'admin' }, csrf: 'preview', actions_enabled: S.switchOn });
+    }
+    if (u.indexOf('/api/health') === 0) {
+      return json({ ok: true, time: new Date().toISOString(), actions_enabled: S.switchOn });
+    }
+    if (u.indexOf('/api/scan') === 0) return json(scanWithActions());
+    if (u.indexOf('/api/overview') === 0) return json(clone(S.overview));
+    if (u.indexOf('/api/audit') === 0) {
+      return json({ entries: auditLog.length ? auditLog : clone(S.audit.entries || []) });
+    }
+    if (u.indexOf('/api/policy/actions-enabled') === 0) {
+      if (body.enabled === true && body.confirm_word !== 'ENABLE') {
+        return json({ error: 'type ENABLE to confirm enabling actions' }, 400);
+      }
+      S.switchOn = !!body.enabled;
+      auditLog.unshift({
+        t: new Date().toISOString(), user: 'admin', app: 'policy',
+        action: 'policy-toggle', result: 'ok',
+        error: 'actions_enabled=' + body.enabled, ip: '127.0.0.1'
+      });
+      return json({ ok: true, actions_enabled: S.switchOn });
+    }
+    if (u.indexOf('/api/auth/login') === 0) {
+      return json({ ok: true, username: 'admin', role: 'admin', csrf: 'preview' });
+    }
+    if (u.indexOf('/api/auth/logout') === 0) return json({ ok: true });
+    if (u.indexOf('/api/auth/change-password') === 0) {
+      return json({ error: 'preview build: password changes are disabled' }, 400);
+    }
+    if (u.indexOf('/logs') > -1) {
+      var t = new Date().toISOString();
+      return json({ text: [
+        '[' + t + '] INFO  server listening on :3002',
+        '[' + t + '] INFO  GET /api/health 200 1.2ms',
+        '[' + t + '] WARN  slow query 842ms SELECT * FROM invoices WHERE status = $1',
+        '[' + t + '] INFO  scheduled job finished in 214ms',
+        '[' + t + '] INFO  pm2 restart requested by panel'
+      ].join('\n') });
+    }
+    if (u.indexOf('/actions') > -1) {
+      return json({
+        ok: true, action: body.action || 'restart', app: 'web-pwa',
+        status: 'running', pid: 1234, verified: true, port_bound: true,
+        waited_ms: 342, port_released: true
+      });
+    }
+    if (u.indexOf('/api/') === 0) return json({});
+    return json({});
+  };
+  // The panel calls /favicon.ico; make it a harmless no-op offline.
+  var realFetch = window.fetch;
+  window.fetch = function (u, o) {
+    if (String(u).indexOf('/favicon.ico') > -1) return Promise.resolve({ ok: true, status: 204, json: function () { return Promise.resolve({}); } });
+    return realFetch(u, o);
+  };
+})();
+
+</script>
+<script>
+'use strict';
+/* Vanilla JS dashboard. No build step, no inline handlers. */
+const $ = (id) => document.getElementById(id);
+const state = { me: null, csrf: null, scan: null, overview: null, filter: 'all', search: '', logId: null, logWhich: 'out', live: true, pending: new Set() };
+
+async function api(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  if (state.csrf && (opts.method === 'POST' || opts.method === 'PATCH')) headers['X-Panel-CSRF'] = state.csrf;
+  const res = await fetch(path, { ...opts, headers });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function fmtMB(b) { return b == null ? '—' : (b / 1048576).toFixed(0) + ' MB'; }
+function fmtUp(s) {
+  if (!s) return '—';
+  const d = Math.floor(s / 86400);
+  if (d) return `${d}d ${Math.floor((s % 86400) / 3600)}h`;
+  const h = Math.floor(s / 3600);
+  if (h) return `${h}h ${Math.floor((s % 3600) / 60)}m`;
+  return `${Math.floor(s / 60)}m`;
+}
+function toast(msg, cls) {
+  const t = document.createElement('div');
+  t.className = `toast ${cls || ''}`;
+  t.textContent = msg;
+  $('toasts').appendChild(t);
+  setTimeout(() => t.remove(), 6000);
+}
+
+async function refreshMe() {
+  const me = await api('/api/me');
+  state.me = me.user;
+  state.csrf = me.csrf;
+  $('login-view').classList.toggle('hidden', !!me.user);
+  $('app-view').classList.toggle('hidden', !me.user);
+  $('logout-btn').classList.toggle('hidden', !me.user);
+  $('changepw-btn').classList.toggle('hidden', !me.user);
+  $('actions-toggle-wrap').classList.toggle('hidden', !me.user);
+  $('actions-toggle').checked = me.actions_enabled === true;
+  $('actions-toggle-label').textContent = me.actions_enabled ? 'actions ENABLED' : 'actions disabled';
+  $('session').textContent = me.user ? `${me.user.username} · actions ${me.actions_enabled ? 'ENABLED' : 'disabled'}` : '';
+  if (me.user) { await refreshScan(true); await refreshAll(); }
+}
+
+function matchSearch(a) {
+  const q = state.search.toLowerCase();
+  if (!q) return true;
+  return [a.name, a.display_name, a.id, (a.domains || []).join(' '), (a.ports || []).map((p) => p.port).join(' '), a.cwd]
+    .join(' ').toLowerCase().includes(q);
+}
+function matchFilter(a) { return state.filter === 'all' || a.category === state.filter; }
+
+async function refreshScan(silent) {
+  try {
+    const last = await api('/api/scan');
+    if (last && last.items) { state.scan = last; renderScan(last); }
+    else if (!silent) toast('no scan yet — press SCAN VPS');
+  } catch (e) { if (!silent) toast('scan load failed: ' + e.message, 'fail'); }
+}
+
+async function doScan() {
+  const btn = $('scan-btn');
+  btn.disabled = true;
+  btn.textContent = 'SCANNING…';
+  try {
+    const r = await api('/api/scan', { method: 'POST', body: '{}' });
+    state.scan = r;
+    state.diff = r.diff || { new: [], gone: [] }; // kept until the next scan
+    renderScan(r);
+    toast(`scan complete: ${r.counts.running} running, ${r.counts.stopped} stopped${r.cached ? ' (cached)' : ''}`, 'ok');
+  } catch (e) { toast('scan failed: ' + e.message, 'fail'); }
+  btn.disabled = false;
+  btn.textContent = 'SCAN VPS';
+  await refreshAll();
+}
+
+// Builds the action-button cell for one pm2 row. Pure: no DOM, so it is unit
+// testable (test/ui.test.js). The greyed Start/Stop/Restart fallback keys off
+// the app having no allowed actions, NOT off the combined button list being
+// empty — otherwise a Logs button suppresses the fallback and the action
+// buttons vanish instead of showing disabled.
+function actionButtons(a, pend) {
+  if (a.kind !== 'pm2') return '';
+  const live = isLiveStatus(a.status);
+  const allowed = a.actions || [];
+  const btns = [];
+  if (!live && allowed.includes('start')) {
+    if (a.start_blocked) {
+      btns.push(`<button disabled title="port ${(a.ports || [])[0] ? a.ports[0].port : '?'} still held by pid ${a.holder_pid}">Start</button>`);
+    } else {
+      btns.push(`<button data-act="start" data-id="${esc(a.id)}" ${pend ? 'disabled' : ''}>Start</button>`);
+    }
+  }
+  if (live && allowed.includes('stop')) btns.push(`<button class="danger" data-act="stop" data-id="${esc(a.id)}" ${pend ? 'disabled' : ''}>Stop</button>`);
+  if (live && allowed.includes('restart')) btns.push(`<button data-act="restart" data-id="${esc(a.id)}" ${pend ? 'disabled' : ''}>Restart</button>`);
+  if (!allowed.length) {
+    btns.push('<button disabled title="not enabled in policy">Start</button><button disabled title="not enabled in policy">Stop</button><button disabled title="not enabled in policy">Restart</button>');
+  }
+  if (a.logs_enabled) btns.push(`<button class="ghost" data-act="logs" data-id="${esc(a.id)}">Logs</button>`);
+  return btns.join(' ');
+}
+
+function renderScan(r) {
+  $('scan-meta').textContent = r.scanned_at ? `last scan: ${r.scanned_at}${r.cached ? ' (cached)' : ''}${r.complete === false ? ' · INCOMPLETE' : ''}` : '';
+  const diff = state.diff;
+  $('scan-diff').textContent = diff && (diff.new.length || diff.gone.length)
+    ? `diff: ${diff.new.length} new (${diff.new.join(', ')}), ${diff.gone.length} gone (${diff.gone.join(', ')})` : '';
+  // Chips are recomputed from the (live-merged) rows on every render,
+  // so they never go stale between scans.
+  const rows = r.items || [];
+  $('scan-warn').textContent = (r.warnings && r.warnings.length)
+    ? `scan warnings: ${r.warnings.join(' | ')}` : '';
+  const c = {
+    running: rows.filter((i) => i.status === 'running').length,
+    stopped: rows.filter((i) => i.status === 'stopped' || i.status === 'unmanaged-stopped').length,
+    errored: rows.filter((i) => i.status === 'errored' || i.status === 'restarting').length,
+    unmanaged: rows.filter((i) => i.kind === 'unmanaged').length,
+    public_binds: rows.filter((i) => (i.ports || []).some((p) => p.public)).length
+  };
+  $('chips').innerHTML =
+    `<span>Running ${c.running}</span><span>Stopped ${c.stopped}</span>` +
+    `<span>Errored ${c.errored}</span><span>Unmanaged ${c.unmanaged}</span>` +
+    `<span class="${c.public_binds ? 'warn' : ''}">Public binds ${c.public_binds}</span>` +
+    ((r.drift && (r.drift.running_not_in_dump.length || r.drift.in_dump_not_running.length))
+      ? `<span class="warn">dump drift: running∉dump [${r.drift.running_not_in_dump.join(', ')}] · dump∉running [${r.drift.in_dump_not_running.join(', ')}]</span>` : '');
+  const items = (r.items || []).filter((a) => matchSearch(a) && matchFilter(a));
+  const pm2rows = items.filter((a) => a.kind === 'pm2' || a.kind === 'panel');
+  const webrows = items.filter((a) => a.kind === 'website');
+  const unrows = items.filter((a) => a.kind === 'unmanaged');
+  const infrarows = items.filter((a) => a.kind === 'infra');
+  $('nav-count-apps').textContent = pm2rows.length;
+
+  const emptyRow = (cols, msg) => `<tr><td colspan="${cols}" class="wrap"><div class="empty"><div class="big">—</div>${msg}</div></td></tr>`;
+
+  document.querySelector('#apps-pm2 tbody').innerHTML = pm2rows.length ? pm2rows.map((a) => {
+    const live = isLiveStatus(a.status);
+    const pend = state.pending.has(a.id);
+    const btns = actionButtons(a, pend);
+    const ports = (a.ports || []).map((p) => `${p.port}${p.public ? ' ⚠' : ''}`).join(', ') || '—';
+    const drift = a.kind === 'pm2' && live && r.drift && r.drift.running_not_in_dump.includes(a.name)
+      ? '<span class="badge">not in dump</span>' : '';
+    return `<tr><td><b>${esc(a.display_name || a.name)}</b>${drift}<br><span class="app-sub">${esc(a.id)}${(a.domains || []).length ? ' · ' + esc(a.domains.join(', ')) : ''}</span></td>
+      <td><span class="tag ${esc(a.category)}">${esc(a.category)}</span></td>
+      <td>${statusCell(a.status)}</td>
+      <td class="num">${(a.pids || [])[0] || '—'}</td><td class="num">${a.cpu_pct != null ? a.cpu_pct + '%' : '—'}</td>
+      <td class="num">${fmtMB(a.rss_b)}</td><td>${fmtUp(a.uptime_s)}</td><td class="mono">${esc(ports)}</td>
+      <td class="num">${a.restarts != null ? a.restarts : '—'}</td><td class="actions">${btns || '<span class="muted">—</span>'}</td></tr>`;
+  }).join('') : emptyRow(10, 'No managed applications match the current filter.');
+
+  // Mobile: the same rows as cards, so the page never needs horizontal scroll.
+  $('apps-pm2-cards').innerHTML = pm2rows.map((a) => {
+    const pend = state.pending.has(a.id);
+    const btns = actionButtons(a, pend);
+    return `<div class="app-card">
+      <div class="app-card-top">
+        <div class="nm"><div class="app-card-name">${esc(a.display_name || a.name)}</div>
+          <span class="tag ${esc(a.category)}">${esc(a.category)}</span></div>
+        ${statusCell(a.status)}
+      </div>
+      <div class="app-card-stats">
+        <div><div class="k">CPU</div><div class="v">${a.cpu_pct != null ? a.cpu_pct + '%' : '—'}</div></div>
+        <div><div class="k">RAM</div><div class="v">${fmtMB(a.rss_b)}</div></div>
+        <div><div class="k">Port</div><div class="v">${(a.ports || [])[0] ? esc(a.ports[0].port) : '—'}</div></div>
+      </div>
+      <div class="app-card-meta muted">uptime ${fmtUp(a.uptime_s)} · pid ${(a.pids || [])[0] || '—'} · restarts ${a.restarts != null ? a.restarts : '—'}</div>
+      <div class="app-card-actions">${btns}</div>
+    </div>`;
+  }).join('') || '<div class="empty"><div class="big">—</div>No managed applications match the current filter.</div>';
+
+  document.querySelector('#apps-web tbody').innerHTML = webrows.map((a) =>
+    `<tr><td><b>${esc(a.display_name || a.name)}</b></td><td>${statusCell(a.status)}</td>
+     <td class="wrap">${esc((a.domains || []).join(', '))}</td><td class="wrap muted">${esc(a.cwd || '')}</td></tr>`).join('');
+  $('apps-web-empty').classList.toggle('hidden', webrows.length > 0);
+  document.querySelector('#apps-unmanaged tbody').innerHTML = unrows.map((a) =>
+    `<tr><td><b>${esc(a.name)}</b></td><td>${statusCell(a.status)}</td>
+     <td class="num">${(a.pids || [])[0] || '—'}</td><td class="num">${a.cpu_pct != null ? a.cpu_pct + '%' : '—'}</td>
+     <td class="num">${fmtMB(a.rss_b)}</td><td class="wrap muted">${esc(a.notes || '')}</td></tr>`).join('');
+  $('apps-unmanaged-empty').classList.toggle('hidden', unrows.length > 0);
+  document.querySelector('#apps-infra tbody').innerHTML = infrarows.map((a) =>
+    `<tr><td><b>${esc(a.name)}</b></td><td><span class="dot ${esc(a.status)}">●</span> ${esc(a.status)}</td>
+     <td>${esc(a.notes || '')}</td></tr>`).join('');
+  document.querySelectorAll('#apps-pm2 button').forEach((b) =>
+    b.addEventListener('click', () => onAppButton(b.dataset.id, b.dataset.act)));
+
+  const all = pm2rows.filter((a) => a.kind === 'pm2' && a.rss_b);
+  $('top-cpu').innerHTML = [...all].sort((x, y) => y.cpu_pct - x.cpu_pct).slice(0, 5)
+    .map((a) => `<li>${esc(a.name)} — ${a.cpu_pct}%</li>`).join('');
+  $('top-ram').innerHTML = [...all].sort((x, y) => y.rss_b - x.rss_b).slice(0, 5)
+    .map((a) => `<li>${esc(a.name)} — ${fmtMB(a.rss_b)}</li>`).join('');
+}
+
+function isLiveStatus(s) { return s === 'running' || s === 'launching' || s === 'restarting'; }
+
+// Merge live overview data into the scan rows by app name on every poll,
+// so rows never go stale between scans.
+function mergeOverview(ov) {
+  if (!ov || !ov.apps || !state.scan || !state.scan.items) return;
+  const map = Object.fromEntries(ov.apps.map((a) => [a.name, a]));
+  for (const item of state.scan.items) {
+    if (item.kind !== 'pm2' && item.kind !== 'panel') continue;
+    const o = map[item.name];
+    if (!o) continue;
+    item.status = o.status;
+    item.cpu_pct = o.cpu_pct;
+    item.rss_b = o.rss_b;
+    item.pids = o.pids;
+    item.uptime_s = o.uptime_s;
+    item.ports = o.ports;
+    item.restarts = o.restarts;
+  }
+}
+
+async function authLost(e) {
+  if (e && e.status === 401) { await refreshMe(); return true; }
+  return false;
+}
+
+async function refreshOverviewAndMerge() {
+  const ov = await api('/api/overview');
+  state.overview = ov;
+  renderServerCard(ov);
+  const banner = $('policy-banner');
+  if (ov.policy_error) {
+    banner.textContent = `policy problem — actions and logs are blocked: ${ov.policy_error}`;
+    banner.classList.remove('hidden');
+  } else {
+    banner.textContent = '';
+    banner.classList.add('hidden');
+  }
+  mergeOverview(ov);
+  if (state.scan) renderScan(state.scan);
+}
+
+// ---------- view switching ----------
+const VIEWS = ['dashboard', 'applications', 'processes', 'ports', 'logs', 'audit', 'settings'];
+function showView(name) {
+  if (!VIEWS.includes(name)) name = 'dashboard';
+  for (const v of VIEWS) {
+    const el = $(`view-${v}`);
+    if (el) el.classList.toggle('on', v === name);
+  }
+  document.querySelectorAll('.nav-item').forEach((b) => {
+    const on = b.dataset.view === name;
+    b.classList.toggle('on', on);
+    if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
+  state.view = name;
+  if (location.hash.slice(1) !== name) history.replaceState(null, '', `#${name}`);
+  window.scrollTo(0, 0);
+}
+
+// ---------- theme ----------
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  try { localStorage.setItem('panel-theme', t); } catch (_) { /* private mode */ }
+}
+
+// ---------- formatting ----------
+function fmtBytes(b) {
+  if (b == null || isNaN(b)) return '—';
+  const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0; let n = Number(b);
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return `${n >= 100 || i === 0 ? Math.round(n) : n.toFixed(1)} ${u[i]}`;
+}
+function meterClass(pct) {
+  if (pct == null || isNaN(pct)) return '';
+  if (pct >= 90) return 'crit';
+  if (pct >= 75) return 'warn';
+  return 'ok';
+}
+// CSP forbids inline styles, so meter widths are 5%-step utility classes.
+function widthClass(pct) {
+  const p = Math.max(0, Math.min(100, Number(pct) || 0));
+  return `w${Math.round(p / 5) * 5}`;
+}
+function statusCell(status) {
+  const s = String(status || 'unknown');
+  const glyph = s === 'running' ? '●' : (s === 'stopped' ? '○' : (s === 'errored' || s === 'missing' ? '✕' : '◐'));
+  return `<span class="status ${esc(s)}"><span class="glyph" aria-hidden="true">${glyph}</span>${esc(s)}</span>`;
+}
+
+// ---------- dashboard: health metrics ----------
+function renderHealth(ov) {
+  const sys = ov && ov.system;
+  const box = $('health-metrics');
+  if (!box) return;
+  if (!sys) {
+    box.innerHTML = '<div class="metric"><div class="metric-label">System</div>'
+      + '<div class="metric-value">unavailable</div>'
+      + '<div class="metric-sub">monitoring data could not be read</div></div>';
+    return;
+  }
+  const mem = sys.mem || {};
+  const disk = sys.disk;
+  const load = Array.isArray(sys.load) ? sys.load : [];
+  const cards = [
+    { label: 'CPU', cores: sys.cpus, value: '—', sub: `${sys.cpus || '?'} cores` },
+    { label: 'Memory', value: fmtBytes(mem.used_b), pct: mem.use_pct,
+      sub: `${fmtBytes(mem.available_b)} available of ${fmtBytes(mem.total_b)}` },
+    { label: 'Swap', value: fmtBytes(mem.swap_used_b),
+      sub: mem.swap_total_b ? `of ${fmtBytes(mem.swap_total_b)}` : 'not configured' },
+    { label: 'Disk /', value: disk ? fmtBytes(Number(disk.used_kb || 0) * 1024) : '—', pct: disk ? parseFloat(disk.use_pct) : null,
+      sub: disk ? `${fmtBytes(Number(disk.avail_kb || 0) * 1024)} free of ${fmtBytes(Number(disk.total_kb || 0) * 1024)}` : 'unavailable' },
+    { label: 'Load (1m)', value: load.length ? load[0].toFixed(2) : '—',
+      sub: load.length > 1 ? `5m ${load[1].toFixed(2)} · 15m ${load[2].toFixed(2)}` : '' },
+    { label: 'Uptime', value: fmtUp(sys.uptime_s), sub: `since boot` }
+  ];
+  box.innerHTML = cards.map((c) => {
+    const pct = c.pct;
+    const bar = pct != null && !isNaN(pct)
+      ? `<div class="meter ${meterClass(pct)}"><i class="${widthClass(pct)}"></i></div>` : '';
+    return `<div class="metric">
+      <div class="metric-label">${esc(c.label)}</div>
+      <div class="metric-value">${esc(c.value)}</div>
+      <div class="metric-sub">${esc(c.sub || '')}</div>
+      ${bar}
+    </div>`;
+  }).join('');
+
+  $('server-quick').textContent = mem.use_pct != null ? `mem ${mem.use_pct}%` : '—';
+  const st = $('server-status');
+  if (st) {
+    const bad = mem.use_pct >= 90 || (disk && parseFloat(disk.use_pct) >= 90);
+    st.className = `status ${bad ? 'errored' : 'running'}`;
+    st.innerHTML = `<span class="glyph" aria-hidden="true">${bad ? '✕' : '●'}</span><span>${bad ? 'degraded' : 'online'}</span>`;
+  }
+}
+
+// ---------- dashboard: session-collected sparklines ----------
+// The backend exposes no history, so we plot only samples actually observed
+// since this page loaded. Nothing is invented.
+const trend = { cpu: [], mem: [], load: [], lastCpu: null, max: 40 };
+function pushTrend(ov) {
+  const sys = ov && ov.system;
+  if (!sys) return;
+  const t = Date.now();
+  const add = (arr, v) => { if (typeof v === 'number' && !isNaN(v)) arr.push({ t, v }); };
+  // The backend exposes no whole-system CPU percentage. Summing the real
+  // per-process CPU from /proc deltas is honest and answers "what is burning
+  // CPU", so that is what is plotted — never an invented system figure.
+  const appCpu = (ov.apps || []).reduce((s, a) => s + (Number(a.cpu_pct) || 0), 0);
+  trend.lastCpu = Math.round(appCpu * 10) / 10;
+  const memPct = sys.mem ? sys.mem.use_pct : null;
+  add(trend.cpu, trend.lastCpu);
+  add(trend.mem, memPct);
+  add(trend.load, Array.isArray(sys.load) ? sys.load[0] : null);
+  if (trend.cpu.length > 60) trend.cpu.shift();
+  if (trend.mem.length > 60) trend.mem.shift();
+  if (trend.load.length > 60) trend.load.shift();
+  const cap = Math.max(20, Math.ceil(trend.lastCpu / 10) * 10);
+  drawChart('chart-cpu', trend.cpu, cap);
+  drawChart('chart-mem', trend.mem, 100);
+  drawChart('chart-load', trend.load, Math.max(1, (sys.cpus || 1) * 2));
+  $('val-cpu').textContent = `${trend.lastCpu}% across apps`;
+  $('val-mem').textContent = memPct != null ? `${memPct}%` : '—';
+  $('val-load').textContent = Array.isArray(sys.load) ? sys.load[0].toFixed(2) : '—';
+  $('trend-note').textContent = `${trend.cpu.length} sample${trend.cpu.length === 1 ? '' : 's'} since page load`;
+}
+function drawChart(id, pts, max) {
+  const svg = $(id);
+  if (!svg) return;
+  if (pts.length < 2) {
+    svg.innerHTML = '<line class="grid-line" x1="0" y1="55" x2="300" y2="55"></line>';
+    return;
+  }
+  const W = 300; const H = 56;
+  const span = Math.max(1, max);
+  const step = W / Math.max(1, pts.length - 1);
+  const coords = pts.map((p, i) => {
+    const y = H - Math.max(0, Math.min(1, p.v / span)) * (H - 4) - 2;
+    return [i * step, y];
+  });
+  const line = coords.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  const area = `${line} L${W},${H} L0,${H} Z`;
+  const crit = pts[pts.length - 1].v / span > 0.9 ? ' crit' : (pts[pts.length - 1].v / span > 0.75 ? ' warn' : '');
+  svg.innerHTML = `<line class="grid-line" x1="0" y1="${H - 2}" x2="${W}" y2="${H - 2}"></line>`
+    + `<path class="area${crit}" d="${area}"></path><path class="line${crit}" d="${line}"></path>`;
+}
+
+// ---------- dashboard: alerts (real rules only) ----------
+function renderAlerts(ov, scan) {
+  const box = $('alerts');
+  if (!box) return;
+  const out = [];
+  const sys = ov && ov.system;
+  if (sys && sys.mem && sys.mem.use_pct >= 80) {
+    out.push({ lvl: sys.mem.use_pct >= 90 ? 'crit' : 'warn', ico: '▲',
+      t: `Memory usage ${sys.mem.use_pct}%`, s: `${fmtBytes(sys.mem.used_b)} used of ${fmtBytes(sys.mem.total_b)}` });
+  }
+  if (sys && sys.disk && parseFloat(sys.disk.use_pct) >= 80) {
+    out.push({ lvl: 'warn', ico: '▲', t: `Disk usage ${sys.disk.use_pct}`, s: `${fmtBytes(Number(sys.disk.avail_kb || 0) * 1024)} remaining on /` });
+  }
+  const items = (scan && scan.items) || [];
+  for (const a of items) {
+    if (a.kind !== 'pm2' && a.kind !== 'panel') continue;
+    if (a.rss_b && a.rss_b > 800 * 1024 * 1024) {
+      out.push({ lvl: 'warn', ico: '▲', t: `${a.name} is using ${fmtBytes(a.rss_b)} RAM`, s: a.category || 'application' });
+    }
+    if (a.status === 'errored' || a.status === 'missing') {
+      out.push({ lvl: 'crit', ico: '✕', t: `${a.name} is ${a.status}`, s: a.pids && a.pids[0] ? `pid ${a.pids[0]}` : 'not running' });
+    }
+  }
+  const stopped = items.filter((a) => a.kind === 'pm2' && a.status === 'stopped').length;
+  if (stopped) {
+    out.push({ lvl: 'info', ico: 'ℹ', t: `${stopped} managed application${stopped === 1 ? ' is' : 's are'} stopped`, s: 'expected if intentionally disabled' });
+  }
+  $('alert-count').textContent = out.length ? `${out.length} item${out.length === 1 ? '' : 's'}` : '';
+  if (!out.length) {
+    box.innerHTML = '<div class="empty"><div class="big">✓</div>No issues detected. All monitored values are within normal ranges.</div>';
+    return;
+  }
+  box.innerHTML = out.map((a) => `<div class="alert-item ${esc(a.lvl)}">
+      <span class="ico" aria-hidden="true">${a.ico}</span>
+      <span class="txt"><span class="ttl">${esc(a.t)}</span><br><span class="sub">${esc(a.s)}</span></span>
+    </div>`).join('');
+}
+
+// ---------- processes ----------
+function renderProcesses(ov) {
+  const tb = document.querySelector('#procs-table tbody');
+  if (!tb) return;
+  const apps = (ov && ov.apps) || [];
+  $('nav-count-procs').textContent = apps.length;
+  if (!apps.length) {
+    tb.innerHTML = '';
+    $('procs-cards').innerHTML = '';
+    $('procs-empty').classList.remove('hidden');
+    return;
+  }
+  $('procs-empty').classList.add('hidden');
+  const q = ($('proc-search').value || '').toLowerCase();
+  const rows = apps.filter((a) => !q || String(a.name).toLowerCase().includes(q));
+  tb.innerHTML = rows.map((a) => `<tr>
+      <td class="num">${a.pid || '—'}</td>
+      <td class="app-name">${esc(a.name)}<br><span class="app-sub">${esc(a.category || '')}</span></td>
+      <td>${statusCell(a.status)}</td>
+      <td class="num">${a.cpu_pct != null ? a.cpu_pct + '%' : '—'}</td>
+      <td class="num">${fmtBytes(a.rss_b)}</td>
+      <td>${fmtUp(a.uptime_s)}</td>
+      <td class="num">${(a.pids || []).length}</td>
+    </tr>`).join('');
+  $('procs-cards').innerHTML = rows.map((a) => `<div class="app-card">
+      <div class="app-card-top"><div class="nm"><div class="app-card-name">${esc(a.name)}</div>
+      <span class="tag ${esc(a.category || 'unclassified')}">${esc(a.category || 'unclassified')}</span></div>
+      ${statusCell(a.status)}</div>
+      <div class="app-card-stats">
+        <div><div class="k">PID</div><div class="v">${a.pid || '—'}</div></div>
+        <div><div class="k">CPU</div><div class="v">${a.cpu_pct != null ? a.cpu_pct + '%' : '—'}</div></div>
+        <div><div class="k">RSS</div><div class="v">${fmtBytes(a.rss_b)}</div></div>
+      </div></div>`).join('');
+}
+
+// ---------- ports ----------
+function renderPorts(scan) {
+  const tb = document.querySelector('#ports-table tbody');
+  if (!tb) return;
+  const items = (scan && scan.items) || [];
+  const rows = [];
+  const seen = new Set();
+  for (const a of items) {
+    for (const p of (a.ports || [])) {
+      const key = `${p.port}:${p.bind}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push({ port: p.port, bind: p.bind, public: p.public, app: a.name, domains: a.domains || [] });
+    }
+  }
+  rows.sort((x, y) => x.port - y.port);
+  $('nav-count-ports').textContent = rows.length;
+  $('ports-note').textContent = rows.length ? `${rows.filter((r) => r.public).length} publicly bound` : '';
+  if (!rows.length) {
+    tb.innerHTML = ''; $('ports-cards').innerHTML = '';
+    $('ports-empty').classList.remove('hidden');
+    return;
+  }
+  $('ports-empty').classList.add('hidden');
+  tb.innerHTML = rows.map((r) => `<tr>
+      <td class="num">${r.port}</td>
+      <td class="mono">${esc(r.bind)}</td>
+      <td>${r.public ? '<span class="tag production">public</span>' : '<span class="tag unclassified">local</span>'}</td>
+      <td class="app-name">${esc(r.app)}</td>
+      <td class="wrap muted">${esc(r.domains.join(', ') || '—')}</td>
+    </tr>`).join('');
+  $('ports-cards').innerHTML = rows.map((r) => `<div class="app-card">
+      <div class="app-card-top"><div class="nm"><div class="app-card-name">:${r.port}</div>
+      <span class="app-sub">${esc(r.app)}</span></div>
+      ${r.public ? '<span class="tag production">public</span>' : '<span class="tag unclassified">local</span>'}</div>
+      <div class="app-card-stats">
+        <div><div class="k">Bind</div><div class="v">${esc(r.bind)}</div></div>
+        <div><div class="k">Port</div><div class="v">${r.port}</div></div>
+        <div><div class="k">Domains</div><div class="v">${r.domains.length}</div></div>
+      </div></div>`).join('');
+}
+
+// ---------- settings ----------
+function renderPolicyInfo(me) {
+  const box = $('policy-info');
+  if (!box) return;
+  const enabled = !!(me && me.actions_enabled);
+  $('setting-switch-state').className = `status ${enabled ? 'running' : 'stopped'}`;
+  $('setting-switch-state').innerHTML = `<span class="glyph" aria-hidden="true">${enabled ? '●' : '○'}</span><span>${enabled ? 'enabled' : 'disabled'}</span>`;
+  $('settings-toggle-btn').textContent = enabled ? 'Disable actions' : 'Enable actions…';
+  const scan = state.scan;
+  const allowed = (scan && scan.items ? scan.items : []).filter((a) => (a.actions || []).length).length;
+  box.innerHTML = `
+    <div><div class="k">Master switch</div><div class="v">${enabled ? 'enabled' : 'disabled'}</div></div>
+    <div><div class="k">Apps with actions</div><div class="v">${allowed}</div></div>
+    <div><div class="k">Scan</div><div class="v">${scan && scan.scanned_at ? esc(scan.scanned_at) : 'not scanned'}</div></div>
+    <div><div class="k">Signed in as</div><div class="v">${me && me.user ? esc(me.user.username) : '—'}</div></div>`;
+}
+
+function renderServerCard(ov) {
+  const box = $('server');
+  if (!box) return;
+  const sys = ov && ov.system;
+  if (!sys) { box.innerHTML = '<div class="empty"><div class="big">Unavailable</div>System metrics could not be read.</div>'; return; }
+  const mem = sys.mem || {};
+  const d = sys.disk;
+  box.innerHTML = `
+    <div><div class="k">Hostname</div><div class="v">${esc(state.scan && state.scan.hostname ? state.scan.hostname : 'not reported')}</div></div>
+    <div><div class="k">CPU cores</div><div class="v">${sys.cpus || '—'}</div></div>
+    <div><div class="k">Memory</div><div class="v">${fmtBytes(mem.used_b)} / ${fmtBytes(mem.total_b)}</div></div>
+    <div><div class="k">Memory available</div><div class="v">${fmtBytes(mem.available_b)}</div></div>
+    <div><div class="k">Swap</div><div class="v">${mem.swap_total_b ? `${fmtBytes(mem.swap_used_b)} / ${fmtBytes(mem.swap_total_b)}` : 'not configured'}</div></div>
+    <div><div class="k">Disk /</div><div class="v">${d ? `${d.use_pct} used` : 'unavailable'}</div></div>
+    <div><div class="k">Load average</div><div class="v">${Array.isArray(sys.load) ? sys.load.map((n) => n.toFixed(2)).join(' / ') : '—'}</div></div>
+    <div><div class="k">Uptime</div><div class="v">${fmtUp(sys.uptime_s)}</div></div>`;
+}
+
+async function refreshAll() {
+  try {
+    await refreshOverviewAndMerge();
+  } catch (e) {
+    if (await authLost(e)) return;
+  }
+  const ov = state.overview;
+  renderHealth(ov);
+  renderServerCard(ov);
+  renderProcesses(ov);
+  renderAlerts(ov, state.scan);
+  renderPolicyInfo(state.me);
+  if (ov) {
+    // CPU is only meaningful as a whole-box number once merged.
+    const cpuSum = (ov.apps || []).reduce((s, a) => s + (Number(a.cpu_pct) || 0), 0);
+    if (Number.isFinite(cpuSum)) {
+      $('server-quick').textContent = ov.system && ov.system.mem ? `cpu ${cpuSum.toFixed(0)}% · mem ${ov.system.mem.use_pct}%` : `cpu ${cpuSum.toFixed(0)}%`;
+    }
+  }
+  pushTrend(ov);
+  try {
+    const d = await api('/api/audit?limit=50');
+    const entries = d.entries || [];
+    document.querySelector('#audit tbody').innerHTML = entries.map((e) =>
+      `<tr><td class="mono">${esc(e.t)}</td><td>${esc(e.user || '')}</td><td>${esc(e.app || '')}</td>
+       <td>${esc(e.action)}</td><td><span class="tag ${e.result === 'ok' ? 'production' : 'utility'}">${esc(e.result)}</span>${e.error ? ' <span class="muted">' + esc(e.error) + '</span>' : ''}</td><td class="mono">${esc(e.ip || '')}</td></tr>`).join('');
+    $('audit-empty').classList.toggle('hidden', entries.length > 0);
+  } catch (e) { await authLost(e); }
+}
+
+let modalResolve = null;
+let modalMode = 'confirm';
+let lastFocus = null;
+function focusables() {
+  const box = $('modal');
+  if (!box) return [];
+  return [...box.querySelectorAll('input, button, [tabindex]:not([tabindex="-1"])')]
+    .filter((n) => !n.disabled && n.offsetParent !== null);
+}
+function trapTab(e) {
+  if (e.key !== 'Tab') return;
+  const f = focusables();
+  if (!f.length) return;
+  const first = f[0];
+  const last = f[f.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+}
+function closeModal(value) {
+  const box = $('modal');
+  if (box) box.classList.add('hidden');
+  $('modal-pw-current').value = '';
+  $('modal-pw-new').value = '';
+  $('modal-pw-confirm').value = '';
+  $('modal-pw-error').textContent = '';
+  $('modal-confirm-word').value = '';
+  $('modal-confirm-word-error').textContent = '';
+  if (lastFocus && lastFocus.focus) lastFocus.focus();
+  lastFocus = null;
+  if (modalResolve) modalResolve(value);
+}
+function openModal() {
+  lastFocus = document.activeElement;
+  $('modal').classList.remove('hidden');
+  const f = focusables();
+  if (f.length) f[0].focus();
+}
+function hideModalExtras() {
+  $('modal-pw-wrap').classList.add('hidden');
+  $('modal-confirm-word-wrap').classList.add('hidden');
+  $('modal-confirm-word-error').textContent = '';
+}
+function confirmModal(title, text, needName) {
+  modalMode = 'confirm';
+  $('modal-title').textContent = title;
+  $('modal-text').textContent = text;
+  $('modal-confirm-name-wrap').classList.toggle('hidden', !needName);
+  hideModalExtras();
+  $('modal-confirm-name').value = '';
+  openModal();
+  return new Promise((resolve) => { modalResolve = resolve; });
+}
+// Password-change dialog. The confirm field is client-side only; the new
+// password itself is never logged or echoed back by the server.
+function passwordModal() {
+  modalMode = 'password';
+  $('modal-title').textContent = 'Change panel login password';
+  $('modal-text').textContent = 'This changes the password for THIS panel login only. The Apache Basic Auth password is separate and is never changed here.';
+  $('modal-confirm-name-wrap').classList.add('hidden');
+  hideModalExtras();
+  $('modal-pw-wrap').classList.remove('hidden');
+  $('modal-pw-current').value = '';
+  $('modal-pw-new').value = '';
+  $('modal-pw-confirm').value = '';
+  $('modal-pw-error').textContent = '';
+  openModal();
+  $('modal-pw-current').focus();
+  return new Promise((resolve) => { modalResolve = resolve; });
+}
+// Arming confirmation for the master switch. Off is deliberately frictionless.
+function confirmEnableModal() {
+  modalMode = 'enable';
+  $('modal-title').textContent = 'Enable starting/stopping apps?';
+  $('modal-text').textContent = 'This allows starting, stopping and restarting any app listed in the allow list — including production and banking apps. Type ENABLE to arm it. You can switch it off again with one click, no typing.';
+  $('modal-confirm-name-wrap').classList.add('hidden');
+  hideModalExtras();
+  $('modal-confirm-word-wrap').classList.remove('hidden');
+  $('modal-confirm-word').value = '';
+  openModal();
+  $('modal-confirm-word').focus();
+  return new Promise((resolve) => { modalResolve = resolve; });
+}
+async function showLogs() {
+  if (!state.logId) return;
+  $('log-app').textContent = `— ${state.logId} (${state.logWhich})`;
+  $('logs').textContent = 'loading…';
+  try {
+    const d = await api(`/api/apps/${encodeURIComponent(state.logId)}/logs?which=${state.logWhich}`);
+    $('logs').textContent = d.text.slice(-20000) || '(empty)';
+  } catch (e) { $('logs').textContent = 'failed: ' + e.message; }
+}
+
+// These two MUST stay at module top level, not inside the document guard below.
+// app.js runs in strict mode, where a function declared inside a block is
+// block-scoped; renderScan() is top level and references onAppButton, so moving
+// it into the guard made every row button throw ReferenceError on click.
+async function onAppButton(id, act) {
+  if (act === 'logs') { state.logId = id; state.logWhich = 'out'; await showLogs(); return; }
+  const a = (state.scan.items || []).find((x) => x.id === id);
+  const needName = act === 'stop';
+  const typed = await confirmModal(`${act} ${a ? a.name : id}?`,
+    needName ? `This will STOP ${id}. Type the app name to confirm.` : `This will ${act} ${id}.`, needName);
+  if (typed === null) return;
+  state.pending.add(id);
+  renderScan(state.scan);
+  try {
+    const r = await api(`/api/apps/${encodeURIComponent(id)}/actions`, {
+      method: 'POST', body: JSON.stringify({ action: act, confirm: true, confirmName: needName ? typed : undefined })
+    });
+    toast(`${r.action} ${r.app}: now ${r.status} (pid ${r.pid})`, 'ok');
+  } catch (e) {
+    // Always re-enable the row first: on a 401 (expired session) we return
+    // to the login form, and the buttons must not stay disabled behind it.
+    state.pending.delete(id);
+    if (state.scan) renderScan(state.scan);
+    if (await authLost(e)) return;
+    toast(`failed: ${e.message}`, 'fail');
+    return;
+  }
+  state.pending.delete(id);
+  // Refresh rows from REAL state (overview cache was cleared server-side),
+  // not from the stale saved scan.
+  try {
+    await refreshOverviewAndMerge();
+    await refreshAll();
+  } catch (e) { await authLost(e); }
+}
+
+// Browser-only bootstrap: event wiring + first load. Guarded so test/ui.test.js
+// can require this file for actionButtons() without a DOM.
+if (typeof document !== 'undefined') {
+$('modal-ok').addEventListener('click', () => {
+  if (modalMode === 'password') {
+    const cur = $('modal-pw-current').value;
+    const next = $('modal-pw-new').value;
+    const conf = $('modal-pw-confirm').value;
+    if (next !== conf) { $('modal-pw-error').textContent = 'new passwords do not match'; return; }
+    if (next.length < 12) { $('modal-pw-error').textContent = 'new password must be at least 12 characters'; return; }
+    closeModal({ mode: 'password', current_password: cur, new_password: next });
+    return;
+  }
+  if (modalMode === 'enable') {
+    const word = $('modal-confirm-word').value;
+    if (word !== 'ENABLE') { $('modal-confirm-word-error').textContent = 'must be exactly ENABLE'; return; }
+    closeModal({ mode: 'enable', enabled: true });
+    return;
+  }
+  closeModal($('modal-confirm-name').value);
+});
+$('modal-cancel').addEventListener('click', () => closeModal(null));
+// Escape cancels, Tab is trapped inside the dialog while it is open.
+$('modal').addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { e.preventDefault(); closeModal(null); return; }
+  trapTab(e);
+});
+
+$('log-out').addEventListener('click', () => { state.logWhich = 'out'; showLogs(); });
+$('log-err').addEventListener('click', () => { state.logWhich = 'err'; showLogs(); });
+
+$('scan-btn').addEventListener('click', doScan);
+$('refresh-btn').addEventListener('click', refreshAll);
+$('live-toggle').addEventListener('change', (e) => { state.live = e.target.checked; });
+$('search').addEventListener('input', (e) => { state.search = e.target.value; if (state.scan) renderScan(state.scan); });
+document.querySelectorAll('.filters button').forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll('.filters button').forEach((x) => x.classList.remove('on'));
+  b.classList.add('on');
+  state.filter = b.dataset.f;
+  if (state.scan) renderScan(state.scan);
+}));
+$('login-btn').addEventListener('click', async () => {
+  $('login-err').textContent = '';
+  try {
+    const r = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ username: $('login-user').value, password: $('login-pass').value }) });
+    state.csrf = r.csrf;
+    $('login-pass').value = '';
+    await refreshMe();
+  } catch (e) { $('login-err').textContent = e.message; }
+});
+for (const id of ['login-user', 'login-pass']) {
+  $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') $('login-btn').click(); });
+}
+
+async function doChangePassword() {
+  const out = await passwordModal();
+  if (!out || out.mode !== 'password') return;
+  try {
+    const r = await api('/api/auth/change-password', { method: 'POST', body: JSON.stringify({ current_password: out.current_password, new_password: out.new_password }) });
+    const n = r.other_sessions_revoked || 0;
+    toast(n ? `Password changed. ${n} other session${n === 1 ? '' : 's'} signed out.` : 'Password changed.');
+  } catch (e) {
+    toast(`Password change failed: ${e.message}`, 'err');
+  }
+}
+$('changepw-btn').addEventListener('click', doChangePassword);
+
+// Master switch. OFF is one click; ON requires typing ENABLE. After a
+// successful toggle we rescan immediately, because the saved scan advertised
+// the previous switch state and would otherwise leave the buttons stale.
+async function setActionsEnabled(enabled, confirmWord) {
+  try {
+    const r = await api('/api/policy/actions-enabled', {
+      method: 'POST',
+      body: JSON.stringify({ enabled, confirm_word: confirmWord })
+    });
+    await refreshMe();
+    await doScan();
+    toast(enabled ? 'Actions ENABLED — buttons are live.' : 'Actions disabled — buttons are greyed out.');
+    return r;
+  } catch (e) {
+    await refreshMe();
+    toast(`Toggle failed: ${e.message}`, 'err');
+    return null;
+  }
+}
+$('actions-toggle').addEventListener('change', async (e) => {
+  const wantOn = e.target.checked;
+  if (!wantOn) { await setActionsEnabled(false); return; }
+  const out = await confirmEnableModal();
+  if (!out || out.mode !== 'enable') { await refreshMe(); return; }
+  await setActionsEnabled(true, 'ENABLE');
+});
+$('settings-toggle-btn').addEventListener('click', async () => {
+  const on = $('actions-toggle').checked;
+  if (on) { await setActionsEnabled(false); return; }
+  const out = await confirmEnableModal();
+  if (!out || out.mode !== 'enable') { await refreshMe(); return; }
+  await setActionsEnabled(true, 'ENABLE');
+});
+$('changepw-btn-2').addEventListener('click', () => doChangePassword());
+$('theme-btn').addEventListener('click', () => {
+  const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  applyTheme(next);
+});
+$('nav-toggle').addEventListener('click', () => {
+  const app = $('app-view');
+  const collapsed = app.classList.toggle('nav-collapsed');
+  $('nav-toggle').setAttribute('aria-expanded', String(!collapsed));
+  try { localStorage.setItem('panel-nav', collapsed ? 'collapsed' : 'open'); } catch (_) { /* ignore */ }
+});
+$('proc-search').addEventListener('input', () => renderProcesses(state.overview));
+$('log-refresh').addEventListener('click', () => showLogs());
+document.querySelectorAll('.nav-item').forEach((b) => {
+  b.addEventListener('click', () => showView(b.dataset.view));
+});
+window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
+// Keyboard: 1-7 jump between views when not typing in a field.
+document.addEventListener('keydown', (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  if (!$('modal').classList.contains('hidden')) return;
+  const n = parseInt(e.key, 10);
+  if (n >= 1 && n <= VIEWS.length) showView(VIEWS[n - 1]);
+});
+$('logout-btn').addEventListener('click', async () => {
+  await api('/api/auth/logout', { method: 'POST', body: '{}' });
+  await refreshMe();
+});
+  // restore persisted preferences before first paint of data
+  try {
+    const savedTheme = localStorage.getItem('panel-theme');
+    if (savedTheme) applyTheme(savedTheme);
+    if (localStorage.getItem('panel-nav') === 'collapsed') $('app-view').classList.add('nav-collapsed');
+  } catch (_) { /* ignore */ }
+  showView(location.hash.slice(1) || 'dashboard');
+  // Pause polling on a hidden tab; resume (and catch up) when it returns.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && state.live && state.me) refreshAll();
+  });
+  setInterval(() => { if (state.live && state.me && !document.hidden) refreshAll(); }, 10000);
+  refreshMe();
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    actionButtons, isLiveStatus, esc, renderScan, state,
+    renderHealth, renderServerCard, renderProcesses, renderPorts,
+    renderAlerts, renderPolicyInfo, showView, VIEWS, pushTrend, drawChart, fmtBytes
+  };
+}
+
+</script>
+
+<!-- preview-only controls: not part of the panel -->
+<div id="pv-bar">
+  <span class="pv-tag">PREVIEW</span>
+  <span class="pv-lbl">actions</span>
+  <button type="button" class="pv-b on" data-pv="switch" data-val="0">OFF</button>
+  <button type="button" class="pv-b" data-pv="switch" data-val="1">ON</button>
+  <span class="pv-sep"></span>
+  <span class="pv-lbl">theme</span>
+  <button type="button" class="pv-b on" data-pv="theme" data-val="dark">dark</button>
+  <button type="button" class="pv-b" data-pv="theme" data-val="light">light</button>
+  <span class="pv-sep"></span>
+  <span class="pv-lbl">width</span>
+  <button type="button" class="pv-b" data-pv="w" data-val="390">390</button>
+  <button type="button" class="pv-b" data-pv="w" data-val="768">768</button>
+  <button type="button" class="pv-b" data-pv="w" data-val="1440">1440</button>
+</div>
+<style>
+#pv-bar {
+  position: fixed; z-index: 999; left: 50%; transform: translateX(-50%);
+  bottom: 10px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 6px 10px; border-radius: 999px;
+  background: rgba(10,14,20,.94); border: 1px solid #33404f;
+  box-shadow: 0 8px 28px rgba(0,0,0,.5); font: 500 12px/1.4 system-ui, sans-serif;
+  color: #8b98a9; max-width: calc(100vw - 16px);
+}
+.pv-tag { font-weight: 700; letter-spacing: .1em; color: #58a6ff; }
+.pv-lbl { text-transform: uppercase; letter-spacing: .08em; font-size: 10px; }
+.pv-sep { width: 1px; height: 16px; background: #33404f; }
+.pv-b {
+  appearance: none; border: 1px solid #33404f; background: transparent;
+  color: #8b98a9; border-radius: 999px; padding: 4px 10px; min-height: 26px;
+  font: 500 12px/1 system-ui, sans-serif; cursor: pointer; margin: 0;
+}
+.pv-b:hover { background: rgba(139,152,169,.14); }
+.pv-b.on { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+#pv-frame { margin: 0 auto; border: 0; display: block; background: #0d1117; }
+body.pv-framed { display: flex; justify-content: center; }
+body.pv-framed #pv-frame { width: 100%; height: calc(100vh - 44px); border-left: 1px solid #33404f; border-right: 1px solid #33404f; }
+</style>
+
+<script>
+
+(function () {
+  var S = window.__PREVIEW__;
+  function mark(btn) {
+    var p = btn.parentNode;
+    p.querySelectorAll('.pv-b').forEach(function (b) { b.classList.remove('on'); });
+    btn.classList.add('on');
+  }
+  document.getElementById('pv-bar').addEventListener('click', function (e) {
+    var b = e.target.closest('.pv-b');
+    if (!b) return;
+    var kind = b.dataset.pv, val = b.dataset.val;
+    if (kind === 'switch') {
+      S.switchOn = val === '1';
+      mark(b);
+      // Re-render exactly as the panel does after a real toggle.
+      document.getElementById('actions-toggle').checked = S.switchOn;
+      var t = document.getElementById('scan-btn');
+      if (t) t.click();
+    } else if (kind === 'theme') {
+      S.theme = val;
+      document.documentElement.setAttribute('data-theme', val);
+      mark(b);
+    } else if (kind === 'w') {
+      mark(b);
+      var w = parseInt(val, 10);
+      var f = document.getElementById('pv-frame');
+      if (w >= 1440) { document.body.classList.remove('pv-framed'); if (f) f.remove(); }
+      else {
+        if (!f) {
+          f = document.createElement('iframe');
+          f.id = 'pv-frame';
+          f.setAttribute('title', 'panel preview');
+          var html = document.documentElement.outerHTML;
+          f.srcdoc = html;
+          document.body.appendChild(f);
+          document.body.classList.add('pv-framed');
+        }
+        f.style.width = w + 'px';
+      }
+    }
+  });
+})();
+
+</script>
+</body>
+</html>
