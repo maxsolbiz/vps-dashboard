@@ -110,11 +110,11 @@ function renderScan(r) {
     const pend = state.pending.has(a.id);
     const btns = [];
     const allowed = a.actions || [];
-    const gate = 'disabled title="not enabled in policy" style="opacity:.45;cursor:not-allowed"';
+    const gate = 'disabled title="not enabled in policy"';
     if (a.kind === 'pm2') {
       if (!live && allowed.includes('start')) {
         if (a.start_blocked) {
-          btns.push(`<button disabled title="port ${(a.ports || [])[0] ? a.ports[0].port : '?'} still held by pid ${a.holder_pid}" style="opacity:.45;cursor:not-allowed">Start</button>`);
+          btns.push(`<button disabled title="port ${(a.ports || [])[0] ? a.ports[0].port : '?'} still held by pid ${a.holder_pid}">Start</button>`);
         } else {
           btns.push(`<button data-act="start" data-id="${esc(a.id)}" ${pend ? 'disabled' : ''}>Start</button>`);
         }

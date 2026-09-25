@@ -210,6 +210,13 @@ fastify.get('/robots.txt', async (req, reply) => {
   return 'User-agent: *\nDisallow: /\n';
 });
 
+// Real (empty) favicon instead of <link href="data:,">: the CSP has no img-src
+// data: allowance, so a data: icon is blocked and logs a console error.
+fastify.get('/favicon.ico', async (req, reply) => {
+  reply.code(204);
+  return null;
+});
+
 fastify.get('/api/health', async () => ({ ok: true, time: new Date().toISOString(), actions_enabled: actionsEnabled() }));
 
 fastify.get('/api/me', async (req) => ({

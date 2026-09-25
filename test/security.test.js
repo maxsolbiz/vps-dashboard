@@ -91,6 +91,19 @@ test('static UI responses are no-store (no stale app.js mixing)', async () => {
   }
 });
 
+test('UI assets contain no inline styles or data: URIs (strict CSP stays strict)', async () => {
+  // Regression: item-7 disabled buttons shipped style="..." attributes and
+  // index.html shipped <link rel="icon" href="data:,">, which the
+  // `default-src 'self'` CSP blocks at runtime with console errors.
+  for (const p of ['/', '/app.js']) {
+    const body = await fetch(`${srv.base}${p}`).then((r) => r.text());
+    assert.doesNotMatch(body, /\sstyle="/, `${p} must not use inline style attributes`);
+    assert.doesNotMatch(body, /href="data:/, `${p} must not use data: URIs`);
+  }
+  const fav = await fetch(`${srv.base}/favicon.ico`);
+  assert.equal(fav.status, 204, 'favicon.ico is served (204), not a data: URI');
+});
+
 test('/api/setup does not exist -> 404', async () => {
   for (const m of ['GET', 'POST']) {
     const r = await fetch(`${srv.base}/api/setup`, { method: m });
