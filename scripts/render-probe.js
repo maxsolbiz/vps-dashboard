@@ -33,8 +33,22 @@ global.document = {
   createElement: (tag) => makeEl(`new:${tag}:${Math.random()}`),
   querySelector: (sel) => el(sel),
   querySelectorAll: () => [],
-  hidden: false
+  hidden: false,
+  body: el('#body'),
+  documentElement: { getAttribute: () => 'dark', setAttribute() {} },
+  addEventListener() {}
 };
+// app.js is a browser script: it touches window.matchMedia, localStorage and
+// history during bootstrap, so the probe has to provide them.
+global.window = {
+  addEventListener() {},
+  scrollTo() {},
+  matchMedia: () => ({ matches: false, media: '', addEventListener() {}, addListener() {} }),
+  localStorage: { getItem: () => null, setItem() {} }
+};
+global.localStorage = global.window.localStorage;
+global.location = { hash: '' };
+global.history = { replaceState() {} };
 
 const routes = {
   '/api/me': { user: { username: 'admin', role: 'admin' }, csrf: 'test', actions_enabled: false },

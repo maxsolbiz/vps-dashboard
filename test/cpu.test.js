@@ -145,6 +145,104 @@ test('private files/dirs request 0600/0700 modes', () => {
   assert.ok(modes.includes(0o600), `file 0600 requested, got ${modes.join(',')}`);
 });
 
+test('parseSystemStat reads the aggregate cpu line and ignores cpuN', () => {
+  const p = cpustat.parseSystemStat(
+    'cpu  1000 20 300 8000 100 0 50 0 0 0\n' +
+    'cpu0 500 10 150 4000 50 0 25 0 0 0\n' +
+    'intr 12345'
+  );
+  assert.equal(p.user, 1000);
+  assert.equal(p.nice, 20);
+  assert.equal(p.system, 300);
+  assert.equal(p.idle, 8000);
+  assert.equal(p.iowait, 100);
+  assert.equal(p.total, 1000 + 20 + 300 + 8000 + 100 + 0 + 50);
+  // A file with no aggregate line is unusable, not zero.
+  assert.equal(cpustat.parseSystemStat('intr 1\nctxt 2'), null);
+  assert.equal(cpustat.parseSystemStat(''), null);
+  assert.equal(cpustat.parseSystemStat(null), null);
+});
+
+test('systemCpuPct measures true whole-box busy time, not a per-process sum', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'panel-procstat-'));
+  const statFile = path.join(root, 'stat');
+  process.env.PANEL_PROC_ROOT = root;
+  const write = (u, n, s, idle) => fs.writeFileSync(statFile, `cpu  ${u} 0 ${s} ${idle} 0 0 0 0 0 0\n`);
+  try {
+    cpustat._reset();
+    // First call establishes the baseline and must NOT invent a number.
+    write(100, 100, 800, 0);
+    assert.equal(cpustat.systemCpuPct(1000), null, 'no baseline yet -> null');
+
+    // Advance 100 user, 0 system, 900 idle out of 1000 total ticks => 10% busy.
+    write(200, 100, 800, 900);
+    assert.equal(cpustat.systemCpuPct(2000), 10);
+
+    // Fully idle window => 0%.
+    write(200, 100, 800, 1900);
+    assert.equal(cpustat.systemCpuPct(3000), 0);
+
+    // Half busy => 50%.
+    write(700, 100, 800, 2400);
+    assert.equal(cpustat.systemCpuPct(4000), 50);
+  } finally {
+    delete process.env.PANEL_PROC_ROOT;
+    cpustat._reset();
+  }
+});
+
+test('systemCpuPct folds iowait into idle and clamps to 0..100', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'panel-procstat2-'));
+  const statFile = path.join(root, 'stat');
+  process.env.PANEL_PROC_ROOT = root;
+  //            user nice system idle iowait irq softirq steal
+  const line = (u, i, w) => `cpu  ${u} 0 0 ${i} ${w} 0 0 0 0 0\n`;
+  try {
+    cpustat._reset();
+    // baseline: 100 idle, no user time
+    fs.writeFileSync(statFile, line(0, 100, 0));
+    assert.equal(cpustat.systemCpuPct(1000), null);
+
+    // 50 user + 50 idle over 100 ticks => 50% busy.
+    fs.writeFileSync(statFile, line(50, 150, 0));
+    assert.equal(cpustat.systemCpuPct(2000), 50);
+
+    // 100 ticks that are ALL iowait: iowait is not busy, so this must be 0%.
+    // Without the iowait fold this would incorrectly read as 50% busy.
+    fs.writeFileSync(statFile, line(50, 150, 100));
+    assert.equal(cpustat.systemCpuPct(3000), 0, 'iowait must not count as busy');
+
+    // Busy can never exceed 100 even with odd counters.
+    fs.writeFileSync(statFile, line(1000, 0, 0));
+    const v = cpustat.systemCpuPct(4000);
+    assert.ok(v === null || (v >= 0 && v <= 100), `clamped or null, got ${v}`);
+  } finally {
+    delete process.env.PANEL_PROC_ROOT;
+    cpustat._reset();
+  }
+});
+
+test('systemCpuPct returns null when /proc/stat is unreadable', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'panel-procstat3-'));
+  process.env.PANEL_PROC_ROOT = root; // exists, but has no `stat` file
+  try {
+    cpustat._reset();
+    assert.equal(cpustat.systemCpuPct(1000), null);
+    assert.equal(cpustat.systemCpuPct(2000), null);
+  } finally {
+    delete process.env.PANEL_PROC_ROOT;
+    cpustat._reset();
+  }
+});
+
+test('sampler exposes whole-box CPU and clears it on reset', async () => {
+  sampler._reset();
+  const cold = sampler.latest();
+  assert.equal(cold.system, null, 'cold sampler has no system reading');
+  assert.equal(Object.prototype.hasOwnProperty.call(cold, 'system'), true, 'key always present');
+  sampler.stop();
+});
+
 test('status map never reports crash loops as stopped', () => {
   assert.equal(statuslib.mapStatus('online'), 'running');
   assert.equal(statuslib.mapStatus('stopped'), 'stopped');
