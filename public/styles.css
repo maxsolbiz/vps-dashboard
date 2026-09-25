@@ -663,7 +663,11 @@ pre {
     visibility: hidden;
   }
   body.nav-open .nav { transform: translateX(0); visibility: visible; }
-  .nav-item { flex: 0 0 auto; width: 100%; justify-content: flex-start; }
+  /* Must match the specificity of the <=1024 rule (.app .nav-item), which also
+     sets justify-content:center. With a bare .nav-item selector that rule wins
+     on specificity regardless of order, and items with no count badge
+     (Logs/Audit/Settings) end up visibly centred. */
+  .app .nav-item { flex: 0 0 auto; width: 100%; justify-content: flex-start; padding: var(--sp-2) var(--sp-3); }
   .app .nav-item .lbl,
   .app .nav-item .count { display: inline; }
   .app .nav-item .count { display: inline-block; }

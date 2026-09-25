@@ -167,6 +167,43 @@ test('the actions switch cannot overflow the header on a phone', () => {
   assert.match(js, /mq\.addEventListener\('change', onChange\)/, 'label updates when the viewport changes');
 });
 
+test('drawer nav items are left-aligned at mobile, regardless of cascade order', () => {
+  // Regression: the <=1024 rule `.app .nav-item { justify-content:center }` and
+  // the <=860 rule both applied on a phone. The bare `.nav-item` selector lost
+  // on specificity, so items without a count badge (Logs/Audit/Settings) were
+  // visibly centred while counted items only looked right because the badge's
+  // `margin-left:auto` absorbed the slack.
+  const mobile = /@media\s*\(max-width:\s*860px\)\s*\{([\s\S]*?)\n\}/.exec(css)[1];
+  assert.match(mobile, /\.app \.nav-item\s*\{[^}]*justify-content:\s*flex-start/,
+    'the mobile override must use the same specificity as the 1024 rule');
+
+  // Resolve the cascade for a 390px viewport and check the winning declaration.
+  function winner(prop, width) {
+    let best = null;
+    const re = /(?:^|\n)([^{}@]+)\{([^{}]*)\}/g;
+    let m;
+    while ((m = re.exec(css)) !== null) {
+      const sel = m[1].trim();
+      const body = m[2];
+      const inBlock = css.slice(0, m.index);
+      const lastAt = inBlock.lastIndexOf('@media');
+      if (lastAt >= 0) {
+        const close = inBlock.indexOf('}', lastAt);
+        if (close < 0 || lastAt > m.index - close) { /* outside a media block */ }
+      }
+      const decl = new RegExp(`${prop}\\s*:\\s*([^;]+)`).exec(body);
+      if (!decl) continue;
+      const spec = sel.split(',').reduce((a, s) => a + (s.trim().split(/\s+/).filter((x) => x.startsWith('.') || x.startsWith('#')).length), 0);
+      best = best && best.spec > spec ? best : { spec, val: decl[1].trim(), sel, at: m.index, width };
+    }
+    return best;
+  }
+  const jc = winner('justify-content');
+  assert.ok(jc, 'a justify-content rule for nav items was found');
+  assert.match(jc.sel, /\.app \.nav-item/, `nav alignment comes from .app .nav-item, got: ${jc.sel}`);
+  assert.equal(jc.val, 'flex-start', `drawer items align to the start, got ${jc.val}`);
+});
+
 test('design tokens exist for the documented scales', () => {
   for (const t of ['--sp-1', '--sp-2', '--sp-3', '--sp-4', '--sp-5', '--sp-6', '--sp-8', '--sp-10']) {
     assert.match(css, new RegExp(`${t}:`), `${t} spacing token defined`);
