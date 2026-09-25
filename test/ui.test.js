@@ -88,6 +88,59 @@ test('app name is escaped in button ids', () => {
   assert.match(html, /&quot;/);
 });
 
+test('renderScan wires row buttons to a RESOLVABLE onAppButton (no ReferenceError on click)', () => {
+  // Regression: the document guard wrapped onAppButton/showLogs in a block.
+  // app.js is strict mode, so those became block-scoped and renderScan (top
+  // level) could not see them -> every row button threw on click. The earlier
+  // smoke test missed it because its querySelectorAll stub returned [], so the
+  // listener was never attached. Here we return real button objects.
+  const { renderScan, state } = require(path.join(__dirname, '..', 'public', 'app.js'));
+  const cells = {};
+  const handlers = [];
+  const mk = () => ({ innerHTML: '', textContent: '', classList: { add() {}, remove() {}, toggle() {} }, addEventListener() {}, focus() {} });
+  const pm2Button = { dataset: { id: 'indirect-app', act: 'restart' }, addEventListener: (ev, fn) => handlers.push({ ev, fn }) };
+  global.document = {
+    hidden: false,
+    getElementById: (id) => (cells[id] = cells[id] || mk()),
+    querySelector: (sel) => (cells[sel] = cells[sel] || mk()),
+    querySelectorAll: (sel) => (sel === '#apps-pm2 button' ? [pm2Button] : [])
+  };
+  try {
+    state.pending = new Set();
+    renderScan({
+      scanned_at: '2026-01-01T00:00:00Z',
+      items: [{ kind: 'pm2', id: 'indirect-app', name: 'indirect-app', status: 'running', actions: ['restart'], logs_enabled: true, category: 'app', ports: [] }],
+      drift: { running_not_in_dump: [], in_dump_not_running: [] }
+    });
+  } finally {
+    delete global.document;
+  }
+  assert.equal(handlers.length, 1, 'a click handler was attached to the row button');
+  assert.equal(handlers[0].ev, 'click');
+  // Actually invoke it: the arrow resolves onAppButton synchronously, so a
+  // block-scoped (invisible) binding throws ReferenceError right here, whereas
+  // a correctly scoped one returns a promise.
+  assert.doesNotThrow(() => {
+    const ret = handlers[0].fn();
+    if (ret && typeof ret.catch === 'function') ret.catch(() => {});
+  }, 'clicking a row button must not throw ReferenceError');
+});
+
+test('onAppButton and showLogs are top-level, not trapped in the document guard', () => {
+  // A strict-mode block-scoped function would be invisible to renderScan, so
+  // assert they are reachable from module scope.
+  const mod = require(path.join(__dirname, '..', 'public', 'app.js'));
+  const src = require('fs').readFileSync(path.join(__dirname, '..', 'public', 'app.js'), 'utf8');
+  const guardAt = src.indexOf("if (typeof document !== 'undefined') {");
+  assert.ok(guardAt > 0, 'document guard exists');
+  for (const fn of ['async function onAppButton(', 'async function showLogs(']) {
+    const at = src.indexOf(fn);
+    assert.ok(at > 0, `${fn} declared`);
+    assert.ok(at < guardAt, `${fn} must be declared BEFORE the document guard`);
+  }
+  assert.equal(typeof mod.renderScan, 'function');
+});
+
 test('renderScan does not throw and honours the greyed fallback end-to-end', () => {
   // Regression guard: extracting actionButtons() dropped a `const live` that
   // renderScan still used for the drift badge, which threw ReferenceError in

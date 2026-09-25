@@ -293,29 +293,20 @@ function confirmEnableModal() {
   $('modal-confirm-word').focus();
   return new Promise((resolve) => { modalResolve = resolve; });
 }
-// Browser-only bootstrap: event wiring + first load. Guarded so test/ui.test.js
-// can require this file for actionButtons() without a DOM.
-if (typeof document !== 'undefined') {
-$('modal-ok').addEventListener('click', () => {
-  if (modalMode === 'password') {
-    const cur = $('modal-pw-current').value;
-    const next = $('modal-pw-new').value;
-    const conf = $('modal-pw-confirm').value;
-    if (next !== conf) { $('modal-pw-error').textContent = 'new passwords do not match'; return; }
-    if (next.length < 12) { $('modal-pw-error').textContent = 'new password must be at least 12 characters'; return; }
-    closeModal({ mode: 'password', current_password: cur, new_password: next });
-    return;
-  }
-  if (modalMode === 'enable') {
-    const word = $('modal-confirm-word').value;
-    if (word !== 'ENABLE') { $('modal-confirm-word-error').textContent = 'must be exactly ENABLE'; return; }
-    closeModal({ mode: 'enable', enabled: true });
-    return;
-  }
-  closeModal($('modal-confirm-name').value);
-});
-$('modal-cancel').addEventListener('click', () => closeModal(null));
+async function showLogs() {
+  if (!state.logId) return;
+  $('log-app').textContent = `— ${state.logId} (${state.logWhich})`;
+  $('logs').textContent = 'loading…';
+  try {
+    const d = await api(`/api/apps/${encodeURIComponent(state.logId)}/logs?which=${state.logWhich}`);
+    $('logs').textContent = d.text.slice(-20000) || '(empty)';
+  } catch (e) { $('logs').textContent = 'failed: ' + e.message; }
+}
 
+// These two MUST stay at module top level, not inside the document guard below.
+// app.js runs in strict mode, where a function declared inside a block is
+// block-scoped; renderScan() is top level and references onAppButton, so moving
+// it into the guard made every row button throw ReferenceError on click.
 async function onAppButton(id, act) {
   if (act === 'logs') { state.logId = id; state.logWhich = 'out'; await showLogs(); return; }
   const a = (state.scan.items || []).find((x) => x.id === id);
@@ -351,15 +342,29 @@ async function onAppButton(id, act) {
   } catch (e) { await authLost(e); }
 }
 
-async function showLogs() {
-  if (!state.logId) return;
-  $('log-app').textContent = `— ${state.logId} (${state.logWhich})`;
-  $('logs').textContent = 'loading…';
-  try {
-    const d = await api(`/api/apps/${encodeURIComponent(state.logId)}/logs?which=${state.logWhich}`);
-    $('logs').textContent = d.text.slice(-20000) || '(empty)';
-  } catch (e) { $('logs').textContent = 'failed: ' + e.message; }
-}
+// Browser-only bootstrap: event wiring + first load. Guarded so test/ui.test.js
+// can require this file for actionButtons() without a DOM.
+if (typeof document !== 'undefined') {
+$('modal-ok').addEventListener('click', () => {
+  if (modalMode === 'password') {
+    const cur = $('modal-pw-current').value;
+    const next = $('modal-pw-new').value;
+    const conf = $('modal-pw-confirm').value;
+    if (next !== conf) { $('modal-pw-error').textContent = 'new passwords do not match'; return; }
+    if (next.length < 12) { $('modal-pw-error').textContent = 'new password must be at least 12 characters'; return; }
+    closeModal({ mode: 'password', current_password: cur, new_password: next });
+    return;
+  }
+  if (modalMode === 'enable') {
+    const word = $('modal-confirm-word').value;
+    if (word !== 'ENABLE') { $('modal-confirm-word-error').textContent = 'must be exactly ENABLE'; return; }
+    closeModal({ mode: 'enable', enabled: true });
+    return;
+  }
+  closeModal($('modal-confirm-name').value);
+});
+$('modal-cancel').addEventListener('click', () => closeModal(null));
+
 $('log-out').addEventListener('click', () => { state.logWhich = 'out'; showLogs(); });
 $('log-err').addEventListener('click', () => { state.logWhich = 'err'; showLogs(); });
 
