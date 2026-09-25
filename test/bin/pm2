@@ -37,7 +37,7 @@ if (verb === 'jlist') {
   const s = load();
   const a = s.apps[name];
   if (!a) { process.stderr.write(`[FakePM2] Process ${name} not found\n`); process.exit(1); }
-  if (verb === 'start') { a.status = 'online'; a.pid = a.fixturePid; a.uptimeStart = Date.now(); delete a.stoppedAt; }
+  if (verb === 'start') { a.status = 'online'; a.pid = a.fixturePid; a.uptimeStart = Date.now(); a.startedAt = Date.now(); delete a.stoppedAt; }
   if (verb === 'stop') {
     a.status = 'stopped'; a.pid = 0; a.stoppedAt = Date.now();
     if (a.portLagMs) a.lingeringPid = a.fixturePid + 1; // orphan child keeps the port
@@ -49,6 +49,7 @@ if (verb === 'jlist') {
     a.pid = a.pidChangesOnRestart ? (a.fixturePid + 5000) : a.fixturePid;
     a.restarts = (a.restarts || 0) + 1;
     a.uptimeStart = Date.now();
+    a.startedAt = Date.now();
     delete a.stoppedAt;
   }
   save(s);

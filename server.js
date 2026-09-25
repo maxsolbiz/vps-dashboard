@@ -446,14 +446,17 @@ fastify.post('/api/apps/:id/actions', async (req, reply) => {
       if (action === 'start' || action === 'restart') {
         // The pm2 action already succeeded; verification is best-effort and a
         // timeout must not turn a real success into a failure.
+        const vStart = Date.now();
         const on = await pm2.waitOnline(item.name, 15000);
         let portBound = null;
         if (knownPort.length) {
-          const held = await ports.holders(knownPort[0]).catch(() => []);
-          portBound = held.length > 0;
+          // Poll, don't check once: pm2 says "online" at spawn time, which can
+          // precede the listener actually binding.
+          const bound = await ports.waitBound(knownPort[0], 10000);
+          portBound = bound.port_bound;
         }
         const verified = on.verified && (portBound === null ? true : portBound);
-        return { ...base, verified, waited_ms: on.waited_ms, port_bound: portBound };
+        return { ...base, verified, waited_ms: Date.now() - vStart, port_bound: portBound };
       }
       return base;
     });

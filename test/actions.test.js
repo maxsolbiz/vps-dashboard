@@ -270,6 +270,31 @@ test('restart reports verified:true for an online app with a bound port', async 
   assert.equal(r.body.port_bound, true);
 });
 
+test('restart waits for a late-binding port instead of falsely reporting failure', async () => {
+  // Regression: verification checked the port ONCE, immediately after pm2 said
+  // "online". A real app binds its listener a moment later, so a successful
+  // restart was reported as verified:false (~2 in 3 runs on event-invoice-backend).
+  const fs = require('fs');
+  const path = require('path');
+  const stateFile = path.join(process.env.PANEL_FAKE_STATE, 'pm2-state.json');
+  const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+  state.apps['shop-api'].portBindLagMs = 1500;
+  fs.writeFileSync(stateFile, JSON.stringify(state));
+  try {
+    const t0 = Date.now();
+    const r = await act('shop-api', { action: 'restart', confirm: true });
+    const elapsed = Date.now() - t0;
+    assert.equal(r.status, 200);
+    assert.equal(r.body.port_bound, true, 'port eventually bound');
+    assert.equal(r.body.verified, true, 'must NOT be a false negative');
+    assert.ok(r.body.waited_ms >= 1000, `waited for the bind, got ${r.body.waited_ms}ms`);
+    assert.ok(elapsed >= 1000, 'response was not returned before the port bound');
+  } finally {
+    delete state.apps['shop-api'].portBindLagMs;
+    fs.writeFileSync(stateFile, JSON.stringify(state));
+  }
+});
+
 test('concurrent action returns 409, not queued', async () => {
   const [a, b] = await Promise.all([
     act('web-pwa', { action: 'restart', confirm: true }),
