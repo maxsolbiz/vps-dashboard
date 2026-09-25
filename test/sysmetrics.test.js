@@ -119,6 +119,45 @@ test('sample() degrades safely when /proc is unavailable', () => {
   }
 });
 
+test('sample() exposes every field the dashboard renders', () => {
+  // Regression: load1/5/15 and majFault were parsed but never copied onto the
+  // sample, so the Load and major-fault KPIs silently rendered as null.
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'panel-smfull-'));
+  fs.mkdirSync(path.join(root, 'net'), { recursive: true });
+  const w = (n, c) => fs.writeFileSync(path.join(root, n), c);
+  w('stat', 'cpu  100 0 50 800 20 0 0 0 0 0 0\ncpu0 50 0 25 400 10 0 0 0 0 0 0\nctxt 1000\nprocesses 42\n');
+  w('loadavg', '0.42 0.21 0.10 2/336 3745754\n');
+  w('net/dev', 'Inter-|   Receive |  Transmit\n face |bytes\n    lo: 1 1 0 0 0 0 0 0 1 1 0 0 0 0 0 0\n  eth0: 1000 2 0 0 0 0 0 0 2000 3 0 0 0 0 0 0\n');
+  w('net/tcp', '  sl  local rem   st\n   0: 1 2 0A 0 0 0\n   1: 1 2 01 0 0 0\n');
+  w('net/tcp6', '  sl  local rem   st\n');
+  w('vmstat', 'pgmajfault 98765\n' + 'oom_kill 3\n');
+  const orig = process.env.PANEL_PROC_ROOT;
+  process.env.PANEL_PROC_ROOT = root;
+  try {
+    sysm._reset();
+    const s1 = sysm.sample(1000);
+    for (const k of ['procs', 'running', 'load1', 'load5', 'load15', 'oomKill', 'majFault', 'ctxt', 'procsCreated']) {
+      assert.ok(k in s1, `${k} is present on the sample`);
+    }
+    assert.equal(s1.load1, 0.42, 'load1 carried through');
+    assert.equal(s1.majFault, 98765, 'majFault carried through');
+    assert.equal(s1.oomKill, 3, 'oomKill carried through');
+    assert.equal(s1.procs, 336);
+    // second sample yields the rates
+    w('stat', 'cpu  200 0 50 900 20 0 0 0 0 0 0\ncpu0 100 0 25 450 10 0 0 0 0 0 0\nctxt 2000\nprocesses 43\n');
+    const s2 = sysm.sample(3000);
+    assert.ok(s2.cpuCores && s2.cpuCores.length, 'per-core rate produced');
+    assert.equal(s2.ctxtRate, 500, 'context switches per second');
+    assert.ok(s2.net.eth0, 'network rate produced');
+  } finally {
+    if (orig === undefined) delete process.env.PANEL_PROC_ROOT; else process.env.PANEL_PROC_ROOT = orig;
+    sysm._reset();
+  }
+});
+
 test('history keeps a bounded ring and reports stats', () => {
   history.clear();
   for (let i = 0; i < history.cap() + 50; i++) {
