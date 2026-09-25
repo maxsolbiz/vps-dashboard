@@ -289,6 +289,35 @@ test('allow list: unlisted app has no actions and is blocked', async () => {
   assert.equal(r.status, 403);
 });
 
+test('scan hides all actions while the master switch is off, even with a populated allow list', async () => {
+  const fs = require('fs');
+  const policyFile = require('../lib/config').policyPath;
+  const backup = fs.readFileSync(policyFile, 'utf8');
+  try {
+    // switch OFF: an otherwise-allowed app must advertise actions=[], so the UI
+    // renders greyed "not enabled in policy" buttons rather than live controls
+    // that only 403 when clicked.
+    const off = JSON.parse(backup);
+    off.actions_enabled = false;
+    fs.writeFileSync(policyFile, JSON.stringify(off));
+    const scOff = await fetch(`${srv.base}/api/scan`, { method: 'POST', headers: authed(sess), body: '{}' }).then((r) => r.json());
+    const itemOff = scOff.items.find((i) => i.id === 'bank-api');
+    assert.deepEqual(itemOff.actions, [], 'switch off -> no buttons advertised');
+    const hblOff = scOff.items.find((i) => i.id === 'web-pwa');
+    assert.deepEqual(hblOff.actions, [], 'switch off -> indirect app also hidden');
+
+    // switch ON: the same app's allow entry comes back, no panel restart needed.
+    const on = JSON.parse(backup);
+    on.actions_enabled = true;
+    fs.writeFileSync(policyFile, JSON.stringify(on));
+    const scOn = await fetch(`${srv.base}/api/scan`, { method: 'POST', headers: authed(sess), body: '{}' }).then((r) => r.json());
+    assert.deepEqual(scOn.items.find((i) => i.id === 'bank-api').actions, ['restart']);
+    assert.deepEqual(scOn.items.find((i) => i.id === 'shop-api').actions, ['start', 'stop', 'restart']);
+  } finally {
+    fs.writeFileSync(policyFile, backup);
+  }
+});
+
 test('allow list: partial entry limits that app (bank-api restart only)', async () => {
   const sc = await fetch(`${srv.base}/api/scan`, { method: 'POST', headers: authed(sess), body: '{}' }).then((r) => r.json());
   const item = sc.items.find((i) => i.id === 'bank-api');
