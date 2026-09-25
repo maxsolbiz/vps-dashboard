@@ -411,9 +411,14 @@ function recordMetrics() {
     // rebuild: the recorder runs on a timer and must not spawn ps/ss/df/pm2.
     const built = overviewlib.lastBuilt();
     if (built && built.system) {
-      lastDisk = built.system.disk ? parseFloat(built.system.disk.use_pct) : lastDisk;
-      if (built.apps && built.apps.length) lastScanItems = built.apps;
+      if (built.system.disk) lastDisk = parseFloat(built.system.disk.use_pct);
     }
+    // App names come from the saved scan (written by a scan, not by a page
+    // view), so per-app history records even when nobody has the dashboard
+    // open. Fall back to the overview's app list if the scan is missing.
+    const saved = scanlib.loadLastScan();
+    if (saved && saved.items && saved.items.length) lastScanItems = saved.items;
+    else if (built && built.apps && built.apps.length) lastScanItems = built.apps;
     const apps = {};
     // Per-app resource use from the process tree the sampler already walked,
     // mapped to app names via the most recent scan. No extra work.

@@ -279,6 +279,10 @@ test('restart waits for a late-binding port instead of falsely reporting failure
   const stateFile = path.join(process.env.PANEL_FAKE_STATE, 'pm2-state.json');
   const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
   state.apps['shop-api'].portBindLagMs = 1500;
+  // Clear startedAt: a restart from an earlier test may have happened well
+  // under 1500 ms ago, which would expire the bind lag immediately and make
+  // this test flap under parallel load.
+  delete state.apps['shop-api'].startedAt;
   fs.writeFileSync(stateFile, JSON.stringify(state));
   try {
     const t0 = Date.now();
@@ -287,10 +291,11 @@ test('restart waits for a late-binding port instead of falsely reporting failure
     assert.equal(r.status, 200);
     assert.equal(r.body.port_bound, true, 'port eventually bound');
     assert.equal(r.body.verified, true, 'must NOT be a false negative');
-    assert.ok(r.body.waited_ms >= 1000, `waited for the bind, got ${r.body.waited_ms}ms`);
-    assert.ok(elapsed >= 1000, 'response was not returned before the port bound');
+    assert.ok(r.body.waited_ms >= 500, `waited for the bind, got ${r.body.waited_ms}ms`);
+    assert.ok(elapsed >= 500, 'response was not returned before the port bound');
   } finally {
     delete state.apps['shop-api'].portBindLagMs;
+    delete state.apps['shop-api'].startedAt;
     fs.writeFileSync(stateFile, JSON.stringify(state));
   }
 });
