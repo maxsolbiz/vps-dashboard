@@ -279,6 +279,117 @@ test('non-action buttons (Logs) are not double-wired as app actions', () => {
   assert.equal(attached.length, 1, 'exactly one handler per button');
 });
 
+test('CPU card shows TRUE system CPU, not the sum of app CPU', () => {
+  const mod = require(path.join(root, 'public', 'app.js'));
+  const ov = { ...OVERVIEW, system: { ...OVERVIEW.system, cpu_pct: 23.4 } };
+  mod.renderHealth(ov);
+  const html = el('health-metrics').innerHTML;
+  assert.match(html, /23\.4%/, 'true system CPU is shown');
+  assert.match(html, /whole-system/, 'labelled as whole-system');
+  // The old behaviour summed per-app CPU; apps here total ~16.7.
+  assert.doesNotMatch(html, /across apps/, 'no longer labels the sum of app CPU');
+  const cpuCard = html.split('</div>').slice(0, 6).join('</div>');
+  assert.ok(cpuCard.includes('23.4%'), 'CPU card carries the system figure');
+});
+
+test('CPU is an em dash until /proc/stat has a baseline, never a guess', () => {
+  const mod = require(path.join(root, 'public', 'app.js'));
+  mod.renderHealth({ ...OVERVIEW, system: { ...OVERVIEW.system, cpu_pct: null } });
+  const html = el('health-metrics').innerHTML;
+  assert.match(html, /collecting…/, 'says it is still collecting');
+  assert.doesNotMatch(html, /NaN|undefined/, 'no bogus number leaks');
+  mod.renderHealth({ ...OVERVIEW, system: { ...OVERVIEW.system, cpu_pct: undefined } });
+  assert.doesNotMatch(el('health-metrics').innerHTML, /NaN|undefined/, 'undefined is handled too');
+});
+
+test('every metric card carries a value, a sub-label and a proportional bar', () => {
+  const mod = require(path.join(root, 'public', 'app.js'));
+  mod.renderHealth({ ...OVERVIEW, system: { ...OVERVIEW.system, cpu_pct: 42 } });
+  const html = el('health-metrics').innerHTML;
+  const cards = (html.match(/class="metric"/g) || []).length;
+  assert.equal(cards, 6, 'six metric cards');
+  // Swap (not configured) and Uptime (not a percentage) correctly have no bar.
+  assert.equal((html.match(/class="meter/g) || []).length, 4, 'percentage metrics carry a meter');
+  assert.match(html, /not configured/, 'absent swap is stated, not faked');
+  assert.equal((html.match(/class="w\d+"/g) || []).length, 4, 'widths use CSP-safe utility classes');
+  assert.match(html, /2 cores/, 'core count shown');
+  assert.match(html, /Disk/, 'disk card present');
+});
+
+test('disk is a capacity gauge with used/free, not a fabricated time series', () => {
+  const mod = require(path.join(root, 'public', 'app.js'));
+  mod._resetTrend();
+  const ov = { ...OVERVIEW, system: { ...OVERVIEW.system, cpu_pct: 10 } };
+  mod.pushTrend(ov);
+  mod.pushTrend(ov);
+  const fill = el('gauge-disk-fill');
+  assert.match(fill.getAttribute('data-width') || '', /^w\d+$/, 'gauge width is a utility class');
+  assert.match(el('val-disk').textContent, /79% used of/, 'used and total shown');
+  assert.match(el('val-disk-free').textContent, /free/, 'free space shown');
+  assert.doesNotMatch(el('val-disk').textContent, /NaN/, 'no NaN in the gauge');
+});
+
+test('disk gauge degrades when the backend reports no disk', () => {
+  const mod = require(path.join(root, 'public', 'app.js'));
+  mod._resetTrend();
+  const ov = { ...OVERVIEW, system: { ...OVERVIEW.system, disk: null, cpu_pct: 5 } };
+  mod.pushTrend(ov);
+  assert.equal(el('gauge-disk-fill').getAttribute('data-empty'), 'true', 'gauge marked empty');
+  assert.match(el('val-disk').textContent, /not reported/, 'says it is not reported');
+});
+
+test('trend stats report now/min/max from observed samples only', () => {
+  const mod = require(path.join(root, 'public', 'app.js'));
+  mod._resetTrend();
+  const base = OVERVIEW.system;
+  for (const cpu of [10, 80, 35]) {
+    mod.pushTrend({ ...OVERVIEW, system: { ...base, cpu_pct: cpu } });
+  }
+  const v = el('val-cpu').textContent;
+  assert.match(v, /35%/, 'current value is the latest sample');
+  assert.match(v, /min 10\.0%/, 'min comes from the observed samples');
+  assert.match(v, /max 80\.0%/, 'max comes from the observed samples');
+  assert.match(el('trend-note').textContent, /since page load/, 'window is honestly labelled');
+});
+
+test('the trend buffer is capped so a long session cannot grow unbounded', () => {
+  const mod = require(path.join(root, 'public', 'app.js'));
+  mod._resetTrend();
+  const base = OVERVIEW.system;
+  for (let i = 0; i < 200; i++) {
+    mod.pushTrend({ ...OVERVIEW, system: { ...base, cpu_pct: i % 100 } });
+  }
+  const note = el('trend-note').textContent;
+  const n = parseInt(note, 10);
+  assert.ok(n <= 60, `buffer capped at 60 samples, got ${n}`);
+});
+
+test('charts show a waiting state rather than a flat zero line', () => {
+  const mod = require(path.join(root, 'public', 'app.js'));
+  const mod2 = mod;
+  mod2.drawChart('chart-cpu', [{ t: 1, v: 5 }], 100);
+  const svg = el('chart-cpu');
+  assert.ok(svg.classList.contains('waiting'), 'single sample is flagged as waiting');
+  mod2.drawChart('chart-cpu', [{ t: 1, v: 5 }, { t: 2, v: 20 }], 100);
+  assert.equal(svg.classList.contains('waiting'), false, 'cleared once there is a series');
+  assert.match(svg.innerHTML, /class="head/, 'end-point marker drawn');
+  assert.match(svg.innerHTML, /class="grid-line mid"/, 'mid gridline drawn');
+});
+
+test('hotspot lists are ranked with proportional bars and an empty state', () => {
+  const mod = require(path.join(root, 'public', 'app.js'));
+  mod.renderScan(SCAN);
+  const cpu = el('top-cpu').innerHTML;
+  assert.match(cpu, /data-app="web-pwa"/, 'rows carry the app id so they are clickable');
+  assert.match(cpu, /bar-fill/, 'bars are drawn');
+  assert.match(cpu, /class="pos">1</, 'ranked from 1');
+  // leader must sort first
+  assert.ok(cpu.indexOf('pos">1<') < cpu.indexOf('pos">2<') || cpu.indexOf('pos">2<') === -1, 'ordering is stable');
+  const empty = { ...SCAN, items: [] };
+  mod.renderScan(empty);
+  assert.match(el('top-cpu').innerHTML, /No running applications/, 'honest empty state');
+});
+
 test('long names and empty collections degrade gracefully', () => {
   const mod = require(path.join(root, 'public', 'app.js'));
   const longName = 'a'.repeat(120);

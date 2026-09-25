@@ -100,9 +100,31 @@
         </div>
         <div class="card-body">
           <div class="trend-grid">
-            <div class="trend"><div class="trend-label">CPU</div><svg class="chart" id="chart-cpu" viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true"></svg><div class="trend-val" id="val-cpu">—</div></div>
-            <div class="trend"><div class="trend-label">Memory</div><svg class="chart" id="chart-mem" viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true"></svg><div class="trend-val" id="val-mem">—</div></div>
-            <div class="trend"><div class="trend-label">Load (1m)</div><svg class="chart" id="chart-load" viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true"></svg><div class="trend-val" id="val-load">—</div></div>
+            <div class="trend">
+              <div class="trend-label">CPU <span class="trend-tag">whole-system</span></div>
+              <svg class="chart" id="chart-cpu" viewBox="0 0 300 56" preserveAspectRatio="none" role="img" aria-label="CPU utilisation over the last ten minutes"></svg>
+              <div class="trend-val" id="val-cpu">—</div>
+            </div>
+            <div class="trend">
+              <div class="trend-label">Memory</div>
+              <svg class="chart" id="chart-mem" viewBox="0 0 300 56" preserveAspectRatio="none" role="img" aria-label="Memory utilisation over the last ten minutes"></svg>
+              <div class="trend-val" id="val-mem">—</div>
+            </div>
+            <div class="trend">
+              <div class="trend-label">Load (1m)</div>
+              <svg class="chart" id="chart-load" viewBox="0 0 300 56" preserveAspectRatio="none" role="img" aria-label="Load average over the last ten minutes"></svg>
+              <div class="trend-val" id="val-load">—</div>
+            </div>
+            <div class="trend">
+              <div class="trend-label">Disk <span class="trend-tag">capacity</span></div>
+              <div class="gauge" id="gauge-disk" role="img" aria-label="Disk capacity gauge">
+                <div class="gauge-track"><div class="gauge-fill" id="gauge-disk-fill"></div></div>
+                <div class="gauge-legend">
+                  <span class="gauge-cap" id="val-disk">—</span>
+                  <span class="gauge-free" id="val-disk-free"></span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

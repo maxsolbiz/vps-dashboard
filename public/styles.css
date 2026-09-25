@@ -454,11 +454,16 @@ td.actions { text-align: right; }
 }
 .rank li:last-child { border-bottom: 0; }
 .rank li:hover .rank-name { color: var(--primary); }
+.rank li:focus-visible { box-shadow: var(--focus); border-radius: var(--r-sm); }
+.rank li[data-app]:hover { background: var(--neutral-soft); }
 .rank .pos { font-size: var(--fs-xs); color: var(--text-dim); width: 16px; flex: 0 0 16px; font-variant-numeric: tabular-nums; }
 .rank .rank-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rank .rank-val { font-family: var(--mono); font-size: var(--fs-sm); color: var(--text-muted); white-space: nowrap; }
-.rank .bar { width: 64px; height: 4px; background: var(--bg-sunken); border-radius: var(--r-full); overflow: hidden; flex: 0 0 64px; }
-.rank .bar > i { display: block; height: 100%; background: var(--primary); }
+.rank .rank-val { font-family: var(--mono); font-size: var(--fs-sm); color: var(--text-muted); white-space: nowrap; min-width: 62px; text-align: right; }
+.rank .bar { width: 72px; height: 6px; background: var(--bg-sunken); border-radius: var(--r-full); overflow: hidden; flex: 0 0 72px; }
+.rank .bar > i { display: block; height: 100%; background: var(--primary); border-radius: var(--r-full); transition: width var(--dur) ease; }
+.rank li:nth-child(1) .bar > i { background: var(--critical); }
+.rank li:nth-child(2) .bar > i { background: var(--warning); }
+.rank-empty { color: var(--text-dim); font-size: var(--fs-sm); cursor: default; justify-content: center; padding: var(--sp-4) 0; }
 
 /* alerts */
 .alert-item {
@@ -571,14 +576,19 @@ pre {
 .error-state button { margin-top: var(--sp-3); }
 
 /* ---------- 17. charts (hand-rolled SVG, no library) ---------- */
-.chart { width: 100%; height: 56px; display: block; overflow: visible; }
+.chart { width: 100%; height: 72px; display: block; overflow: visible; }
 .chart .grid-line { stroke: var(--border); stroke-width: 1; }
+.chart .grid-line.mid { stroke: var(--border-strong); stroke-dasharray: 2 3; }
 .chart .area { fill: var(--primary-soft); }
 .chart .line { fill: none; stroke: var(--primary); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.chart .head { fill: var(--primary); stroke: var(--bg-raised); stroke-width: 2; }
 .chart.warn .line { stroke: var(--warning); }
 .chart.warn .area { fill: var(--warning-soft); }
+.chart.warn .head { fill: var(--warning); }
 .chart.crit .line { stroke: var(--critical); }
 .chart.crit .area { fill: var(--critical-soft); }
+.chart.crit .head { fill: var(--critical); }
+.chart.waiting { background: repeating-linear-gradient(135deg, var(--bg-sunken) 0 6px, var(--surface) 6px 12px); border-radius: var(--r-sm); }
 
 /* ---------- 16b. view scaffolding ---------- */
 .view-head {
@@ -616,16 +626,43 @@ pre {
 .setting-row .status { font-size: var(--fs-base); }
 
 /* trend charts */
-.trend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-4); }
+.trend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--sp-4); }
 .trend { min-width: 0; }
 .trend-label {
+  display: flex; align-items: center; gap: var(--sp-2);
   font-size: var(--fs-xs); font-weight: 600; letter-spacing: .07em;
   text-transform: uppercase; color: var(--text-dim); margin-bottom: var(--sp-2);
 }
-.trend-val {
-  font-family: var(--mono); font-size: var(--fs-sm);
-  color: var(--text-muted); margin-top: var(--sp-1);
+.trend-tag {
+  font-size: 9px; letter-spacing: .06em; padding: 1px var(--sp-1);
+  border: 1px solid var(--border-strong); border-radius: var(--r-sm);
+  color: var(--text-dim); text-transform: uppercase;
 }
+.trend-val {
+  font-family: var(--mono); font-size: var(--fs-xs);
+  color: var(--text-muted); margin-top: var(--sp-1);
+  line-height: 1.45;
+}
+.metric-pct { margin-left: auto; color: var(--text-dim); font-weight: 600; letter-spacing: .04em; }
+
+/* disk capacity gauge (not a time series: disk moves too slowly to plot) */
+.gauge { padding-top: var(--sp-1); }
+.gauge-track {
+  height: 10px; background: var(--bg-sunken);
+  border: 1px solid var(--border); border-radius: var(--r-full);
+  overflow: hidden; display: flex;
+}
+.gauge-fill { width: 0; transition: width var(--dur) ease; }
+.gauge-fill[data-empty] { width: 0; }
+.gauge-fill.ok { background: var(--success); }
+.gauge-fill.warn { background: var(--warning); }
+.gauge-fill.crit { background: var(--critical); }
+.gauge-legend {
+  display: flex; justify-content: space-between; gap: var(--sp-2);
+  font-family: var(--mono); font-size: var(--fs-xs);
+  color: var(--text-muted); margin-top: var(--sp-2);
+}
+.gauge-free { color: var(--text-dim); }
 
 /* backdrop for the off-canvas drawer */
 .nav-backdrop {

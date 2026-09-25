@@ -201,12 +201,29 @@ function renderScan(r) {
     });
   });
 
-  const all = pm2rows.filter((a) => a.kind === 'pm2' && a.rss_b);
-  $('top-cpu').innerHTML = [...all].sort((x, y) => y.cpu_pct - x.cpu_pct).slice(0, 5)
-    .map((a) => `<li>${esc(a.name)} — ${a.cpu_pct}%</li>`).join('');
-  $('top-ram').innerHTML = [...all].sort((x, y) => y.rss_b - x.rss_b).slice(0, 5)
-    .map((a) => `<li>${esc(a.name)} — ${fmtMB(a.rss_b)}</li>`).join('');
-}
+    // Hotspots: ranked, with a proportional bar so the leader is obvious at a
+    // glance. Bars are relative to the top entry, not an absolute scale.
+    const all = pm2rows.filter((a) => a.kind === 'pm2' && a.rss_b);
+    const rankRow = (a, pct, value) => {
+      const w = Math.max(2, Math.min(100, pct));
+      return `<li data-app="${esc(a.id)}" tabindex="0" role="button">
+        <span class="pos">${a._pos}</span>
+        <span class="rank-name">${esc(a.name)}</span>
+        <span class="bar"><i class="bar-fill" data-width="${widthClass(w)}"></i></span>
+        <span class="rank-val">${esc(value)}</span>
+      </li>`;
+    };
+    const top = [...all].sort((x, y) => (y.cpu_pct || 0) - (x.cpu_pct || 0)).slice(0, 5);
+    const cpuMax = Math.max(1, ...top.map((a) => a.cpu_pct || 0));
+    $('top-cpu').innerHTML = top.length
+      ? top.map((a, i) => rankRow({ ...a, _pos: i + 1 }, ((a.cpu_pct || 0) / cpuMax) * 100, `${(a.cpu_pct || 0).toFixed(1)}%`)).join('')
+      : '<li class="rank-empty">No running applications</li>';
+    const topRam = [...all].sort((x, y) => (y.rss_b || 0) - (x.rss_b || 0)).slice(0, 5);
+    const ramMax = Math.max(1, ...topRam.map((a) => a.rss_b || 0));
+    $('top-ram').innerHTML = topRam.length
+      ? topRam.map((a, i) => rankRow({ ...a, _pos: i + 1 }, ((a.rss_b || 0) / ramMax) * 100, fmtMB(a.rss_b))).join('')
+      : '<li class="rank-empty">No running applications</li>';
+  }
 
 function isLiveStatus(s) { return s === 'running' || s === 'launching' || s === 'restarting'; }
 
@@ -349,34 +366,49 @@ function renderHealth(ov) {
   const mem = sys.mem || {};
   const disk = sys.disk;
   const load = Array.isArray(sys.load) ? sys.load : [];
+  // True whole-box CPU from /proc/stat. null on the very first sample or when
+  // the counter is unreadable — render an em dash rather than a guess.
+  const cpuPct = (typeof sys.cpu_pct === 'number' && !isNaN(sys.cpu_pct)) ? sys.cpu_pct : null;
+  const diskPct = disk ? parseFloat(disk.use_pct) : null;
+  const loadPct = load.length && sys.cpus
+    ? Math.min(100, (load[0] / (sys.cpus * 2)) * 100) : null;
+  const memEst = mem.estimated ? ' (estimated)' : '';
+
   const cards = [
-    { label: 'CPU', cores: sys.cpus, value: '—', sub: `${sys.cpus || '?'} cores` },
+    { label: 'CPU', value: cpuPct == null ? '—' : `${cpuPct}%`, pct: cpuPct,
+      sub: cpuPct == null ? 'collecting…' : `${sys.cpus || '?'} cores · whole-system` },
     { label: 'Memory', value: fmtBytes(mem.used_b), pct: mem.use_pct,
-      sub: `${fmtBytes(mem.available_b)} available of ${fmtBytes(mem.total_b)}` },
-    { label: 'Swap', value: fmtBytes(mem.swap_used_b),
+      sub: `${fmtBytes(mem.available_b)} free of ${fmtBytes(mem.total_b)}${memEst}` },
+    { label: 'Swap', value: mem.swap_total_b ? fmtBytes(mem.swap_used_b) : 'none',
+      pct: mem.swap_total_b ? (mem.swap_used_b / mem.swap_total_b) * 100 : null,
       sub: mem.swap_total_b ? `of ${fmtBytes(mem.swap_total_b)}` : 'not configured' },
-    { label: 'Disk /', value: disk ? fmtBytes(Number(disk.used_kb || 0) * 1024) : '—', pct: disk ? parseFloat(disk.use_pct) : null,
+    { label: 'Disk /', value: disk ? fmtBytes(Number(disk.used_kb || 0) * 1024) : '—', pct: diskPct,
       sub: disk ? `${fmtBytes(Number(disk.avail_kb || 0) * 1024)} free of ${fmtBytes(Number(disk.total_kb || 0) * 1024)}` : 'unavailable' },
-    { label: 'Load (1m)', value: load.length ? load[0].toFixed(2) : '—',
-      sub: load.length > 1 ? `5m ${load[1].toFixed(2)} · 15m ${load[2].toFixed(2)}` : '' },
-    { label: 'Uptime', value: fmtUp(sys.uptime_s), sub: `since boot` }
+    { label: 'Load (1m)', value: load.length ? load[0].toFixed(2) : '—', pct: loadPct,
+      sub: load.length > 2 ? `5m ${load[1].toFixed(2)} · 15m ${load[2].toFixed(2)}` : 'of ' + ((sys.cpus || 1) * 2) + ' max' },
+    { label: 'Uptime', value: fmtUp(sys.uptime_s), sub: 'since boot' }
   ];
   box.innerHTML = cards.map((c) => {
     const pct = c.pct;
     const bar = pct != null && !isNaN(pct)
       ? `<div class="meter ${meterClass(pct)}"><i class="${widthClass(pct)}"></i></div>` : '';
+    const scale = pct != null && !isNaN(pct) && c.label !== 'Load (1m)'
+      ? `<span class="metric-pct">${pct.toFixed(0)}%</span>` : '';
     return `<div class="metric">
-      <div class="metric-label">${esc(c.label)}</div>
+      <div class="metric-label">${esc(c.label)}${scale}</div>
       <div class="metric-value">${esc(c.value)}</div>
       <div class="metric-sub">${esc(c.sub || '')}</div>
       ${bar}
     </div>`;
   }).join('');
 
-  $('server-quick').textContent = mem.use_pct != null ? `mem ${mem.use_pct}%` : '—';
+  const quick = [];
+  if (cpuPct != null) quick.push(`cpu ${cpuPct}%`);
+  if (mem.use_pct != null) quick.push(`mem ${mem.use_pct}%`);
+  $('server-quick').textContent = quick.length ? quick.join(' · ') : '—';
   const st = $('server-status');
   if (st) {
-    const bad = mem.use_pct >= 90 || (disk && parseFloat(disk.use_pct) >= 90);
+    const bad = mem.use_pct >= 90 || (diskPct != null && diskPct >= 90);
     st.className = `status ${bad ? 'errored' : 'running'}`;
     st.innerHTML = `<span class="glyph" aria-hidden="true">${bad ? '✕' : '●'}</span><span>${bad ? 'degraded' : 'online'}</span>`;
   }
@@ -384,53 +416,101 @@ function renderHealth(ov) {
 
 // ---------- dashboard: session-collected sparklines ----------
 // The backend exposes no history, so we plot only samples actually observed
-// since this page loaded. Nothing is invented.
-const trend = { cpu: [], mem: [], load: [], lastCpu: null, max: 40 };
+// since this page loaded. Nothing is invented. 60 samples at the 10 s poll is
+// roughly a 10-minute window, kept in memory only (no storage, no timers).
+const TREND_MAX = 60;
+const trend = { cpu: [], mem: [], load: [], disk: [], lastCpu: null };
+// Test hook: the buffers are module state, so tests need a clean slate.
+function _resetTrend() {
+  trend.cpu = []; trend.mem = []; trend.load = []; trend.disk = [];
+  trend.lastCpu = null;
+}
+function seriesStats(pts) {  if (!pts.length) return null;
+  let min = Infinity; let max = -Infinity;
+  for (const p of pts) { if (p.v < min) min = p.v; if (p.v > max) max = p.v; }
+  return { min, max, cur: pts[pts.length - 1].v, n: pts.length };
+}
+function statsLine(key, unit, digits) {
+  const s = seriesStats(trend[key]);
+  if (!s) return 'collecting…';
+  const d = digits == null ? 0 : digits;
+  return `now ${s.cur.toFixed(d)}${unit} · min ${s.min.toFixed(d)}${unit} · max ${s.max.toFixed(d)}${unit}`;
+}
 function pushTrend(ov) {
   const sys = ov && ov.system;
   if (!sys) return;
   const t = Date.now();
-  const add = (arr, v) => { if (typeof v === 'number' && !isNaN(v)) arr.push({ t, v }); };
-  // The backend exposes no whole-system CPU percentage. Summing the real
-  // per-process CPU from /proc deltas is honest and answers "what is burning
-  // CPU", so that is what is plotted — never an invented system figure.
-  const appCpu = (ov.apps || []).reduce((s, a) => s + (Number(a.cpu_pct) || 0), 0);
-  trend.lastCpu = Math.round(appCpu * 10) / 10;
-  const memPct = sys.mem ? sys.mem.use_pct : null;
-  add(trend.cpu, trend.lastCpu);
-  add(trend.mem, memPct);
+  const add = (arr, v) => {
+    if (typeof v === 'number' && !isNaN(v)) { arr.push({ t, v }); if (arr.length > TREND_MAX) arr.shift(); }
+  };
+  // True whole-system CPU from /proc/stat. Previously this plotted the SUM of
+  // per-process CPU, which is not the machine's utilisation.
+  const cpuPct = (typeof sys.cpu_pct === 'number' && !isNaN(sys.cpu_pct)) ? sys.cpu_pct : null;
+  trend.lastCpu = cpuPct;
+  add(trend.cpu, cpuPct);
+  add(trend.mem, sys.mem ? sys.mem.use_pct : null);
   add(trend.load, Array.isArray(sys.load) ? sys.load[0] : null);
-  if (trend.cpu.length > 60) trend.cpu.shift();
-  if (trend.mem.length > 60) trend.mem.shift();
-  if (trend.load.length > 60) trend.load.shift();
-  const cap = Math.max(20, Math.ceil(trend.lastCpu / 10) * 10);
-  drawChart('chart-cpu', trend.cpu, cap);
+  add(trend.disk, sys.disk ? parseFloat(sys.disk.use_pct) : null);
+
+  drawChart('chart-cpu', trend.cpu, 100);
   drawChart('chart-mem', trend.mem, 100);
   drawChart('chart-load', trend.load, Math.max(1, (sys.cpus || 1) * 2));
-  $('val-cpu').textContent = `${trend.lastCpu}% across apps`;
-  $('val-mem').textContent = memPct != null ? `${memPct}%` : '—';
-  $('val-load').textContent = Array.isArray(sys.load) ? sys.load[0].toFixed(2) : '—';
-  $('trend-note').textContent = `${trend.cpu.length} sample${trend.cpu.length === 1 ? '' : 's'} since page load`;
+
+  $('val-cpu').textContent = cpuPct == null ? 'collecting…' : `${cpuPct}% · ${statsLine('cpu', '%', 1)}`;
+  $('val-mem').textContent = statsLine('mem', '%', 1);
+  $('val-load').textContent = statsLine('load', '', 2);
+
+  // Disk is a capacity gauge, not a time series: it moves too slowly to plot
+  // honestly, and drawing a flat line would imply data we do not have.
+  const diskPct = sys.disk ? parseFloat(sys.disk.use_pct) : null;
+  const fill = $('gauge-disk-fill');
+  if (fill) {
+    if (diskPct == null || isNaN(diskPct)) {
+      fill.className = 'gauge-fill';
+      fill.setAttribute('data-empty', 'true');
+    } else {
+      fill.className = `gauge-fill ${meterClass(diskPct)}`;
+      fill.setAttribute('data-width', widthClass(diskPct));
+      fill.removeAttribute('data-empty');
+    }
+  }
+  $('val-disk').textContent = diskPct == null || isNaN(diskPct)
+    ? 'not reported'
+    : `${diskPct.toFixed(0)}% used of ${fmtBytes(Number(sys.disk.total_kb || 0) * 1024)}`;
+  $('val-disk-free').textContent = sys.disk
+    ? `${fmtBytes(Number(sys.disk.avail_kb || 0) * 1024)} free` : '';
+
+  $('trend-note').textContent = `${trend.cpu.length || trend.mem.length} sample${(trend.cpu.length || trend.mem.length) === 1 ? '' : 's'} since page load · ~10 min window`;
 }
 function drawChart(id, pts, max) {
   const svg = $(id);
   if (!svg) return;
-  if (pts.length < 2) {
-    svg.innerHTML = '<line class="grid-line" x1="0" y1="55" x2="300" y2="55"></line>';
+  const W = 300; const H = 72;
+  if (!pts || pts.length < 2) {
+    // Be explicit that there is no data yet rather than drawing a flat line,
+    // which would read as "steady at zero".
+    svg.classList.add('waiting');
+    svg.innerHTML = `<line class="grid-line" x1="0" y1="${H - 2}" x2="${W}" y2="${H - 2}"></line>`;
     return;
   }
-  const W = 300; const H = 56;
+  svg.classList.remove('waiting');
   const span = Math.max(1, max);
   const step = W / Math.max(1, pts.length - 1);
   const coords = pts.map((p, i) => {
-    const y = H - Math.max(0, Math.min(1, p.v / span)) * (H - 4) - 2;
+    const y = H - Math.max(0, Math.min(1, p.v / span)) * (H - 10) - 4;
     return [i * step, y];
   });
   const line = coords.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
   const area = `${line} L${W},${H} L0,${H} Z`;
-  const crit = pts[pts.length - 1].v / span > 0.9 ? ' crit' : (pts[pts.length - 1].v / span > 0.75 ? ' warn' : '');
-  svg.innerHTML = `<line class="grid-line" x1="0" y1="${H - 2}" x2="${W}" y2="${H - 2}"></line>`
-    + `<path class="area${crit}" d="${area}"></path><path class="line${crit}" d="${line}"></path>`;
+  const last = pts[pts.length - 1].v / span;
+  const crit = last > 0.9 ? ' crit' : (last > 0.75 ? ' warn' : '');
+  const [hx, hy] = coords[coords.length - 1];
+  svg.innerHTML =
+    `<line class="grid-line" x1="0" y1="${H - 2}" x2="${W}" y2="${H - 2}"></line>`
+    + `<line class="grid-line mid" x1="0" y1="${(H / 2).toFixed(1)}" x2="${W}" y2="${(H / 2).toFixed(1)}"></line>`
+    + `<path class="area${crit}" d="${area}"></path>`
+    + `<path class="line${crit}" d="${line}"></path>`
+    + `<circle class="head${crit}" cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="2.5"></circle>`;
 }
 
 // ---------- dashboard: alerts (real rules only) ----------
@@ -860,6 +940,28 @@ $('log-refresh').addEventListener('click', () => showLogs());
 document.querySelectorAll('.nav-item').forEach((b) => {
   b.addEventListener('click', () => { showView(b.dataset.view); closeNav(); });
 });
+// Hotspot rows are clickable: open the app's Logs, which is the fastest useful
+// drill-down without inventing a second detail surface.
+document.getElementById('main').addEventListener('click', (e) => {
+  const row = e.target.closest ? e.target.closest('.rank li[data-app]') : null;
+  if (row && state.scan) {
+    showView('logs');
+    state.logId = row.dataset.app;
+    state.logWhich = 'out';
+    showLogs();
+  }
+});
+document.getElementById('main').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const row = e.target.closest ? e.target.closest('.rank li[data-app]') : null;
+  if (row && state.scan) {
+    e.preventDefault();
+    showView('logs');
+    state.logId = row.dataset.app;
+    state.logWhich = 'out';
+    showLogs();
+  }
+});
 window.addEventListener('hashchange', () => { showView(location.hash.slice(1)); closeNav(); });
 // Leaving the mobile breakpoint must not strand an open drawer off-screen.
 if (typeof window.matchMedia === 'function') {
@@ -905,6 +1007,6 @@ if (typeof module !== 'undefined' && module.exports) {
     actionButtons, isLiveStatus, esc, renderScan, state,
     renderHealth, renderServerCard, renderProcesses, renderPorts,
     renderAlerts, renderPolicyInfo, showView, VIEWS, pushTrend, drawChart, fmtBytes,
-    setNav, closeNav, switchLabel, isMobileNav
+    setNav, closeNav, switchLabel, isMobileNav, _resetTrend
   };
 }
